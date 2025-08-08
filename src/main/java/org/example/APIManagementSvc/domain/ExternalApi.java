@@ -1,0 +1,135 @@
+package org.example.APIManagementSvc.domain;
+
+import jakarta.persistence.*;
+import lombok.Getter;
+import lombok.Setter;
+import org.example.APIManagementSvc.domain.enums.ApiDomain;
+import org.example.APIManagementSvc.domain.enums.ApiKeyword;
+
+import java.time.LocalDateTime;
+import java.util.List;
+
+/**
+ * 외부 API 메타데이터 엔티티
+ * external_api 테이블에 매핑
+ */
+@Entity
+@Table(name = "external_api", indexes = {
+    @Index(name = "idx_api_domain", columnList = "api_domain"),
+    @Index(name = "idx_api_owner", columnList = "api_owner")
+})
+@Getter
+@Setter
+public class ExternalApi {
+
+    /** 외부 API의 고유 식별자 */
+    @Id
+    @Column(name = "api_id", nullable = false, length = 36)
+    private String apiId;
+
+    /** API의 이름 */
+    @Column(name = "api_name", nullable = false, length = 255)
+    private String apiName;
+
+    /** API의 URL 주소 */
+    @Column(name = "api_url", nullable = false, length = 500)
+    private String apiUrl;
+
+    /** API 발급처 */
+    @Column(name = "api_issuer", nullable = false, length = 255)
+    private String apiIssuer;
+
+    /** API를 추가한 사용자 ID */
+    @Column(name = "api_owner", length = 36)
+    private String apiOwner;
+
+    /** API 분류 도메인 */
+    @Enumerated(EnumType.STRING)
+    @Column(name = "api_domain", nullable = false, length = 255)
+    private ApiDomain apiDomain;
+
+    /** API 세부분류용 키워드 */
+    @Enumerated(EnumType.STRING)
+    @Column(name = "api_keyword", nullable = false, length = 255)
+    private ApiKeyword apiKeyword;
+
+    /** API의 HTTP 메소드 */
+    @Column(name = "http_method", nullable = false, length = 10)
+    private String httpMethod;
+
+    /** API에 대한 상세 설명 */
+    @Column(name = "api_description", columnDefinition = "TEXT")
+    private String apiDescription;
+
+    /** API 유효성 상태 */
+    @Column(name = "api_effectiveness", nullable = false)
+    private Boolean apiEffectiveness = true;
+
+    /** 생성 일시 */
+    @Column(name = "created_at", nullable = false)
+    private LocalDateTime createdAt;
+
+    /** 수정 일시 */
+    @Column(name = "updated_at", nullable = false)
+    private LocalDateTime updatedAt;
+
+    /** Soft Delete를 위한 삭제 플래그 */
+    @Column(name = "deleted", nullable = false)
+    private Boolean deleted = false;
+
+    // === 연관 관계 ===
+
+    /** API 파라미터 목록 */
+    @OneToMany(mappedBy = "externalApi", cascade = CascadeType.ALL, fetch = FetchType.LAZY)
+    private List<ApiParameter> parameters;
+
+    // === 비즈니스 로직 메서드 ===
+
+    /**
+     * API 유효성 상태 업데이트
+     */
+    public void updateEffectiveness(Boolean effectiveness) {
+        this.apiEffectiveness = effectiveness;
+        this.updatedAt = LocalDateTime.now();
+    }
+
+    /**
+     * API 정보 업데이트
+     */
+    public void updateApiInfo(String apiName, String apiUrl, String apiDescription) {
+        this.apiName = apiName;
+        this.apiUrl = apiUrl;
+        this.apiDescription = apiDescription;
+        this.updatedAt = LocalDateTime.now();
+    }
+
+    /**
+     * API 분류 업데이트
+     */
+    public void updateClassification(ApiDomain domain, ApiKeyword keyword) {
+        this.apiDomain = domain;
+        this.apiKeyword = keyword;
+        this.updatedAt = LocalDateTime.now();
+    }
+
+    /**
+     * API가 유효한지 확인
+     */
+    public boolean isValid() {
+        return apiEffectiveness && !deleted;
+    }
+
+    /**
+     * API 소유자 확인
+     */
+    public boolean isOwnedBy(String userId) {
+        return apiOwner != null && apiOwner.equals(userId);
+    }
+
+    /**
+     * API 정보 요약
+     */
+    public String getSummary() {
+        return String.format("%s (%s) - %s", apiName, apiIssuer, apiDomain);
+    }
+}
