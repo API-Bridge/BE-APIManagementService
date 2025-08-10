@@ -4,6 +4,8 @@ import jakarta.persistence.*;
 import lombok.Getter;
 import lombok.Setter;
 
+import java.time.LocalDateTime;
+
 /**
  * API 파라미터 정보 엔티티
  * api_parameter 테이블에 매핑
@@ -14,7 +16,7 @@ import lombok.Setter;
 })
 @Getter
 @Setter
-public class ApiParameter extends BaseEntity {
+public class ApiParameter {
 
     /** 파라미터 정보 고유 식별자 */
     @Id
@@ -40,6 +42,18 @@ public class ApiParameter extends BaseEntity {
     /** 파라미터의 기본값 */
     @Column(name = "default_value", columnDefinition = "TEXT")
     private String defaultValue;
+
+    /** 생성 일시 */
+    @Column(name = "created_at", nullable = false)
+    private LocalDateTime createdAt;
+
+    /** 수정 일시 */
+    @Column(name = "updated_at", nullable = false)
+    private LocalDateTime updatedAt;
+
+    /** Soft Delete를 위한 삭제 플래그 */
+    @Column(name = "deleted", nullable = false)
+    private Boolean deleted = false;
 
     // === 연관 관계 ===
 

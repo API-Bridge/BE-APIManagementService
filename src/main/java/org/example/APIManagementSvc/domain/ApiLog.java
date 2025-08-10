@@ -117,6 +117,10 @@ public class ApiLog {
     @Column(name = "created_at", nullable = false)
     private LocalDateTime createdAt;
 
+    /** Soft Delete를 위한 삭제 플래그 */
+    @Column(name = "deleted", nullable = false)
+    private Boolean deleted = false;
+
     // === 로그 타입 ENUM ===
     public enum LogType {
         API_CREATION("API 생성"),

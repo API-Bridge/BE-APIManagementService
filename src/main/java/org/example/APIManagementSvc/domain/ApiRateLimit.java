@@ -74,6 +74,10 @@ public class ApiRateLimit {
     @Column(name = "metadata", columnDefinition = "TEXT")
     private String metadata;
 
+    /** Soft Delete를 위한 삭제 플래그 */
+    @Column(name = "deleted", nullable = false)
+    private Boolean deleted = false;
+
     // === 비즈니스 로직 메서드 ===
 
     /**
