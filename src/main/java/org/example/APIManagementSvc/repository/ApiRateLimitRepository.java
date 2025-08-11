@@ -228,3 +228,4 @@ public interface ApiRateLimitRepository extends JpaRepository<ApiRateLimit, Stri
     @Query("SELECT COUNT(r) FROM ApiRateLimit r WHERE r.currentCount >= r.limitCount AND r.status = 'ACTIVE' AND r.deleted = false")
     long countExceededRateLimits();
 }
+

@@ -236,3 +236,4 @@ public interface ApiTokenRepository extends JpaRepository<ApiToken, String> {
     @Query("SELECT COUNT(t) FROM ApiToken t WHERE t.tokenStatus = 'EXPIRED' AND t.deleted = false")
     long countExpiredTokens();
 }
+
