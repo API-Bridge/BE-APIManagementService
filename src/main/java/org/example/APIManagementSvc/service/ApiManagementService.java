@@ -1,14 +1,22 @@
 package org.example.APIManagementSvc.service;
 
+import lombok.Builder;
+import lombok.Getter;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.example.APIManagementSvc.domain.ExternalApi;
 import org.example.APIManagementSvc.domain.ApiParameter;
+import org.example.APIManagementSvc.domain.ExternalApi;
+import org.example.APIManagementSvc.domain.enums.ApiDomain;
+import org.example.APIManagementSvc.domain.enums.ApiKeyword;
+import org.example.APIManagementSvc.dto.externalapi.ExternalApiUpdateRequest;
+import org.example.APIManagementSvc.repository.ApiParameterRepository;
+import org.example.APIManagementSvc.repository.ExternalApiRepository;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.LocalDateTime;
 import java.util.List;
-import java.util.Optional;
+import java.util.UUID;
 
 /**
  * API 메타데이터 통합 관리 서비스
@@ -22,97 +30,235 @@ public class ApiManagementService {
 
     private final ExternalApiService externalApiService;
     private final ApiParameterService apiParameterService;
+    private final ExternalApiRepository externalApiRepository;
+    private final ApiParameterRepository apiParameterRepository;
+    private final AiClassificationService aiClassificationService;
 
     /**
-     * API와 파라미터를 함께 생성
+     * API와 파라미터를 함께 등록
      */
     @Transactional
-    public ExternalApi createApiWithParameters(ExternalApi api, List<ApiParameter> parameters) {
-        log.info("Creating API with {} parameters: {}", 
-                parameters != null ? parameters.size() : 0, api.getApiName());
+    public ExternalApi registerApiWithParameters(ExternalApi api, List<ApiParameter> parameters) {
+        log.info("Registering API with parameters: {}", api.getApiName());
         
-        // API 생성
-        ExternalApi savedApi = externalApiService.createApi(api);
-        
-        // 파라미터들 생성
-        if (parameters != null && !parameters.isEmpty()) {
-            for (ApiParameter parameter : parameters) {
-                parameter.setApiId(savedApi.getApiId());
-                apiParameterService.createParameter(parameter);
+        try {
+            // 1. AI 자동 분류 수행
+            if (api.getApiDomain() == null || api.getApiKeyword() == null) {
+                var classification = aiClassificationService.classifyApi(api.getApiId(), api.getApiName(), api.getApiDescription(), api.getApiUrl());
+                if (api.getApiDomain() == null) {
+                    api.setApiDomain(classification.getClassifiedDomain());
+                }
+                if (api.getApiKeyword() == null) {
+                    api.setApiKeyword(classification.getClassifiedKeyword());
+                }
             }
-            log.info("Created {} parameters for API: {}", parameters.size(), savedApi.getApiId());
+            
+            // 2. API 등록
+            ExternalApi registeredApi = externalApiService.registerApi(api);
+            
+            // 3. 파라미터 등록
+            if (parameters != null && !parameters.isEmpty()) {
+                for (ApiParameter parameter : parameters) {
+                    parameter.setApiId(registeredApi.getApiId());
+                    apiParameterService.saveParameter(parameter);
+                }
+            }
+            
+            log.info("Successfully registered API with {} parameters", parameters != null ? parameters.size() : 0);
+            return registeredApi;
+            
+        } catch (Exception e) {
+            log.error("Failed to register API with parameters: {}", e.getMessage(), e);
+            throw new RuntimeException("API registration failed: " + e.getMessage(), e);
         }
-        
-        return savedApi;
     }
 
     /**
-     * API와 파라미터를 함께 조회
+     * API와 파라미터 함께 조회
      */
     public ApiWithParameters getApiWithParameters(String apiId) {
-        log.debug("Fetching API with parameters: {}", apiId);
+        log.debug("Getting API with parameters: {}", apiId);
         
-        Optional<ExternalApi> api = externalApiService.getApiById(apiId);
-        if (api.isEmpty()) {
-            return null;
-        }
+        ExternalApi api = externalApiService.getApiById(apiId)
+                .orElseThrow(() -> new IllegalArgumentException("API not found: " + apiId));
         
         List<ApiParameter> parameters = apiParameterService.getParametersByApiId(apiId);
         
         return ApiWithParameters.builder()
-                .api(api.get())
+                .api(api)
                 .parameters(parameters)
                 .build();
     }
 
     /**
-     * API와 파라미터를 함께 업데이트
+     * API와 파라미터 함께 수정
      */
     @Transactional
-    public ExternalApi updateApiWithParameters(String apiId, ExternalApi updateData, List<ApiParameter> newParameters) {
+    public ExternalApi updateApiWithParameters(String apiId, ExternalApiUpdateRequest updateData, List<ApiParameter> parameters) {
         log.info("Updating API with parameters: {}", apiId);
         
-        // API 업데이트
-        ExternalApi updatedApi = externalApiService.updateApi(apiId, updateData);
-        
-        // 기존 파라미터들 삭제
-        apiParameterService.deleteAllParametersByApiId(apiId);
-        
-        // 새로운 파라미터들 생성
-        if (newParameters != null && !newParameters.isEmpty()) {
-            for (ApiParameter parameter : newParameters) {
-                parameter.setApiId(apiId);
-                apiParameterService.createParameter(parameter);
+        try {
+            // 1. API 수정
+            ExternalApi updateEntity = new ExternalApi();
+            updateEntity.setApiName(updateData.getApiName());
+            updateEntity.setApiDescription(updateData.getApiDescription());
+            updateEntity.setApiUrl(updateData.getApiUrl());
+            updateEntity.setHttpMethod(updateData.getHttpMethod());
+            updateEntity.setApiIssuer(updateData.getApiIssuer());
+            updateEntity.setApiEffectiveness(updateData.getApiEffectiveness());
+                    
+            ExternalApi updatedApi = externalApiService.updateApi(apiId, updateEntity);
+            
+            // 2. 기존 파라미터 삭제 후 새 파라미터 추가
+            if (parameters != null) {
+                apiParameterService.deleteAllParametersByApiId(apiId);
+                
+                for (ApiParameter parameter : parameters) {
+                    parameter.setApiId(apiId);
+                    apiParameterService.saveParameter(parameter);
+                }
             }
-            log.info("Updated {} parameters for API: {}", newParameters.size(), apiId);
+            
+            log.info("Successfully updated API with {} parameters", parameters != null ? parameters.size() : 0);
+            return updatedApi;
+            
+        } catch (Exception e) {
+            log.error("Failed to update API with parameters: {}", e.getMessage(), e);
+            throw new RuntimeException("API update failed: " + e.getMessage(), e);
         }
-        
-        return updatedApi;
     }
 
     /**
-     * API와 파라미터를 함께 삭제
+     * API와 파라미터 함께 삭제
      */
     @Transactional
     public void deleteApiWithParameters(String apiId) {
         log.info("Deleting API with parameters: {}", apiId);
         
-        // 파라미터들 먼저 삭제
-        apiParameterService.deleteAllParametersByApiId(apiId);
+        try {
+            // 1. 파라미터 삭제
+            apiParameterService.deleteAllParametersByApiId(apiId);
+            
+            // 2. API 삭제
+            externalApiService.deleteApi(apiId);
+            
+            log.info("Successfully deleted API with parameters: {}", apiId);
+            
+        } catch (Exception e) {
+            log.error("Failed to delete API with parameters: {}", e.getMessage(), e);
+            throw new RuntimeException("API deletion failed: " + e.getMessage(), e);
+        }
+    }
+
+    /**
+     * API 유효성 검증
+     */
+    public ApiValidationResult validateApi(String apiId) {
+        log.debug("Validating API: {}", apiId);
         
-        // API 삭제
-        externalApiService.deleteApi(apiId);
+        try {
+            ExternalApi api = externalApiService.getApiById(apiId)
+                    .orElseThrow(() -> new IllegalArgumentException("API not found: " + apiId));
+            
+            List<ApiParameter> parameters = apiParameterService.getParametersByApiId(apiId);
+            
+            // 기본적인 유효성 검증
+            boolean isValid = true;
+            StringBuilder errorMessage = new StringBuilder();
+            
+            // API 필수 필드 검증
+            if (api.getApiUrl() == null || api.getApiUrl().trim().isEmpty()) {
+                isValid = false;
+                errorMessage.append("API URL is required. ");
+            }
+            
+            if (api.getHttpMethod() == null || api.getHttpMethod().trim().isEmpty()) {
+                isValid = false;
+                errorMessage.append("HTTP Method is required. ");
+            }
+            
+            // TODO: 실제 API 엔드포인트 헬스체크 추가
+            // 여기서 실제 API에 요청을 보내 유효성을 확인할 수 있습니다.
+            
+            return ApiValidationResult.builder()
+                    .isValid(isValid)
+                    .errorMessage(errorMessage.toString().trim())
+                    .api(api)
+                    .parameters(parameters)
+                    .build();
+                    
+        } catch (Exception e) {
+            log.error("Failed to validate API: {}", e.getMessage(), e);
+            return ApiValidationResult.builder()
+                    .isValid(false)
+                    .errorMessage("Validation failed: " + e.getMessage())
+                    .build();
+        }
+    }
+
+    /**
+     * API 복사 (새로운 API 생성)
+     */
+    @Transactional
+    public ExternalApi copyApi(String originalApiId, String newApiName) {
+        log.info("Copying API: {} to {}", originalApiId, newApiName);
         
-        log.info("API and parameters deleted: {}", apiId);
+        try {
+            // 1. 원본 API 조회
+            ExternalApi originalApi = externalApiService.getApiById(originalApiId)
+                    .orElseThrow(() -> new IllegalArgumentException("Original API not found: " + originalApiId));
+            
+            // 2. 새 API 생성
+            ExternalApi newApi = new ExternalApi();
+            newApi.setApiId(UUID.randomUUID().toString());
+            newApi.setApiName(newApiName);
+            newApi.setApiDescription(originalApi.getApiDescription() + " (복사본)");
+            newApi.setApiUrl(originalApi.getApiUrl());
+            newApi.setHttpMethod(originalApi.getHttpMethod());
+            newApi.setApiDomain(originalApi.getApiDomain());
+            newApi.setApiKeyword(originalApi.getApiKeyword());
+            newApi.setApiIssuer(originalApi.getApiIssuer());
+            newApi.setApiEffectiveness(originalApi.getApiEffectiveness());
+            newApi.setDeleted(false);
+            newApi.setCreatedAt(LocalDateTime.now());
+            newApi.setUpdatedAt(LocalDateTime.now());
+            
+            ExternalApi copiedApi = externalApiService.registerApi(newApi);
+            
+            // 3. 파라미터 복사
+            List<ApiParameter> originalParameters = apiParameterService.getParametersByApiId(originalApiId);
+            for (ApiParameter originalParam : originalParameters) {
+                ApiParameter newParam = new ApiParameter();
+                newParam.setParameterId(UUID.randomUUID().toString());
+                newParam.setApiId(copiedApi.getApiId());
+                newParam.setParamName(originalParam.getParamName());
+                newParam.setParamType(originalParam.getParamType());
+                newParam.setIsRequired(originalParam.getIsRequired());
+                newParam.setDefaultValue(originalParam.getDefaultValue());
+                // ApiParameter 엔티티에는 description과 example 필드가 없으므로 제거
+                newParam.setCreatedAt(LocalDateTime.now());
+                newParam.setUpdatedAt(LocalDateTime.now());
+                
+                apiParameterService.saveParameter(newParam);
+            }
+            
+            log.info("Successfully copied API with {} parameters", originalParameters.size());
+            return copiedApi;
+            
+        } catch (Exception e) {
+            log.error("Failed to copy API: {}", e.getMessage(), e);
+            throw new RuntimeException("API copy failed: " + e.getMessage(), e);
+        }
     }
 
     /**
      * 도메인별 API와 파라미터 조회
      */
     public List<ApiWithParameters> getApisWithParametersByDomain(String domain) {
-        log.debug("Fetching APIs with parameters by domain: {}", domain);
+        log.debug("Getting APIs with parameters by domain: {}", domain);
         
-        List<ExternalApi> apis = externalApiService.getApisByDomain(domain);
+        ApiDomain apiDomain = ApiDomain.valueOf(domain.toUpperCase());
+        List<ExternalApi> apis = externalApiService.getApisByDomain(apiDomain);
         
         return apis.stream()
                 .map(api -> {
@@ -129,28 +275,10 @@ public class ApiManagementService {
      * 키워드별 API와 파라미터 조회
      */
     public List<ApiWithParameters> getApisWithParametersByKeyword(String keyword) {
-        log.debug("Fetching APIs with parameters by keyword: {}", keyword);
+        log.debug("Getting APIs with parameters by keyword: {}", keyword);
         
-        List<ExternalApi> apis = externalApiService.getApisByKeyword(keyword);
-        
-        return apis.stream()
-                .map(api -> {
-                    List<ApiParameter> parameters = apiParameterService.getParametersByApiId(api.getApiId());
-                    return ApiWithParameters.builder()
-                            .api(api)
-                            .parameters(parameters)
-                            .build();
-                })
-                .toList();
-    }
-
-    /**
-     * API 검색 (이름, 설명, 도메인, 키워드로)
-     */
-    public List<ApiWithParameters> searchApisWithParameters(String searchTerm) {
-        log.debug("Searching APIs with parameters: {}", searchTerm);
-        
-        List<ExternalApi> apis = externalApiService.searchApis(searchTerm);
+        ApiKeyword apiKeyword = ApiKeyword.valueOf(keyword.toUpperCase());
+        List<ExternalApi> apis = externalApiService.getApisByKeyword(apiKeyword);
         
         return apis.stream()
                 .map(api -> {
@@ -163,177 +291,20 @@ public class ApiManagementService {
                 .toList();
     }
 
-    /**
-     * API 복사 (새로운 이름으로)
-     */
-    @Transactional
-    public ExternalApi copyApi(String sourceApiId, String newApiName) {
-        log.info("Copying API: {} with new name: {}", sourceApiId, newApiName);
-        
-        Optional<ExternalApi> sourceApi = externalApiService.getApiById(sourceApiId);
-        if (sourceApi.isEmpty()) {
-            throw new IllegalArgumentException("Source API not found: " + sourceApiId);
-        }
-        
-        // API 복사
-        ExternalApi source = sourceApi.get();
-        ExternalApi newApi = new ExternalApi();
-        newApi.setApiName(newApiName);
-        newApi.setApiUrl(source.getApiUrl());
-        newApi.setApiIssuer(source.getApiIssuer());
-        newApi.setApiOwner(source.getApiOwner());
-        newApi.setApiDomain(source.getApiDomain());
-        newApi.setApiKeyword(source.getApiKeyword());
-        newApi.setHttpMethod(source.getHttpMethod());
-        newApi.setApiDescription("Copy of " + source.getApiDescription());
-        newApi.setApiEffectiveness(true); // 새로 복사된 API는 기본적으로 유효
-        
-        ExternalApi savedNewApi = externalApiService.createApi(newApi);
-        
-        // 파라미터들 복사
-        List<ApiParameter> sourceParameters = apiParameterService.getParametersByApiId(sourceApiId);
-        for (ApiParameter sourceParam : sourceParameters) {
-            ApiParameter newParam = new ApiParameter();
-            newParam.setApiId(savedNewApi.getApiId());
-            newParam.setParamName(sourceParam.getParamName());
-            newParam.setParamType(sourceParam.getParamType());
-            newParam.setIsRequired(sourceParam.getIsRequired());
-            newParam.setDefaultValue(sourceParam.getDefaultValue());
-            
-            apiParameterService.createParameter(newParam);
-        }
-        
-        log.info("API copied successfully: {} -> {}", sourceApiId, savedNewApi.getApiId());
-        return savedNewApi;
-    }
-
-    /**
-     * API 유효성 검증
-     */
-    public ApiValidationResult validateApi(String apiId) {
-        log.debug("Validating API: {}", apiId);
-        
-        Optional<ExternalApi> api = externalApiService.getApiById(apiId);
-        if (api.isEmpty()) {
-            return ApiValidationResult.builder()
-                    .valid(false)
-                    .errors(List.of("API not found"))
-                    .build();
-        }
-        
-        List<String> errors = new java.util.ArrayList<>();
-        
-        // API 기본 정보 검증
-        ExternalApi apiEntity = api.get();
-        if (apiEntity.getApiName() == null || apiEntity.getApiName().trim().isEmpty()) {
-            errors.add("API name is required");
-        }
-        if (apiEntity.getApiUrl() == null || apiEntity.getApiUrl().trim().isEmpty()) {
-            errors.add("API URL is required");
-        }
-        if (apiEntity.getHttpMethod() == null || apiEntity.getHttpMethod().trim().isEmpty()) {
-            errors.add("HTTP method is required");
-        }
-        
-        // 파라미터 검증
-        List<ApiParameter> parameters = apiParameterService.getParametersByApiId(apiId);
-        for (ApiParameter param : parameters) {
-            if (param.getParamName() == null || param.getParamName().trim().isEmpty()) {
-                errors.add("Parameter name is required for parameter: " + param.getParameterId());
-            }
-            if (param.getParamType() == null || param.getParamType().trim().isEmpty()) {
-                errors.add("Parameter type is required for parameter: " + param.getParamName());
-            }
-        }
-        
-        boolean isValid = errors.isEmpty();
-        
-        return ApiValidationResult.builder()
-                .valid(isValid)
-                .errors(errors)
-                .build();
-    }
-
-    /**
-     * API와 파라미터 정보를 담는 DTO
-     */
+    // Inner Classes for DTOs
+    @Getter
+    @Builder
     public static class ApiWithParameters {
-        private final ExternalApi api;
-        private final List<ApiParameter> parameters;
-        
-        // Builder 패턴
-        public static Builder builder() {
-            return new Builder();
-        }
-        
-        private ApiWithParameters(Builder builder) {
-            this.api = builder.api;
-            this.parameters = builder.parameters;
-        }
-        
-        // Getters
-        public ExternalApi getApi() { return api; }
-        public List<ApiParameter> getParameters() { return parameters; }
-        
-        public static class Builder {
-            private ExternalApi api;
-            private List<ApiParameter> parameters;
-            
-            public Builder api(ExternalApi api) {
-                this.api = api;
-                return this;
-            }
-            
-            public Builder parameters(List<ApiParameter> parameters) {
-                this.parameters = parameters;
-                return this;
-            }
-            
-            public ApiWithParameters build() {
-                return new ApiWithParameters(this);
-            }
-        }
+        private ExternalApi api;
+        private List<ApiParameter> parameters;
     }
 
-    /**
-     * API 검증 결과를 담는 DTO
-     */
+    @Getter
+    @Builder
     public static class ApiValidationResult {
-        private final boolean valid;
-        private final List<String> errors;
-        
-        // Builder 패턴
-        public static Builder builder() {
-            return new Builder();
-        }
-        
-        private ApiValidationResult(Builder builder) {
-            this.valid = builder.valid;
-            this.errors = builder.errors;
-        }
-        
-        // Getters
-        public boolean isValid() { return valid; }
-        public List<String> getErrors() { return errors; }
-        
-        public static class Builder {
-            private boolean valid;
-            private List<String> errors;
-            
-            public Builder valid(boolean valid) {
-                this.valid = valid;
-                return this;
-            }
-            
-            public Builder errors(List<String> errors) {
-                this.errors = errors;
-                return this;
-            }
-            
-            public ApiValidationResult build() {
-                return new ApiValidationResult(this);
-            }
-        }
+        private boolean isValid;
+        private String errorMessage;
+        private ExternalApi api;
+        private List<ApiParameter> parameters;
     }
 }
-

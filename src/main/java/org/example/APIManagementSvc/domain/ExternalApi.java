@@ -5,6 +5,8 @@ import lombok.Getter;
 import lombok.Setter;
 import org.example.APIManagementSvc.domain.enums.ApiDomain;
 import org.example.APIManagementSvc.domain.enums.ApiKeyword;
+import com.fasterxml.jackson.annotation.JsonIgnore;
+import com.fasterxml.jackson.annotation.JsonFormat;
 
 import java.time.LocalDateTime;
 import java.util.List;
@@ -67,10 +69,12 @@ public class ExternalApi {
 
     /** 생성 일시 */
     @Column(name = "created_at", nullable = false)
+    @JsonFormat(pattern = "yyyy-MM-dd HH:mm:ss")
     private LocalDateTime createdAt;
 
     /** 수정 일시 */
     @Column(name = "updated_at", nullable = false)
+    @JsonFormat(pattern = "yyyy-MM-dd HH:mm:ss")
     private LocalDateTime updatedAt;
 
     /** Soft Delete를 위한 삭제 플래그 */
@@ -78,10 +82,8 @@ public class ExternalApi {
     private Boolean deleted = false;
 
     // === 연관 관계 ===
-
-    /** API 파라미터 목록 */
-    @OneToMany(mappedBy = "externalApi", cascade = CascadeType.ALL, fetch = FetchType.LAZY)
-    private List<ApiParameter> parameters;
+    // MSA 환경에서 외래키 제약조건 및 연관관계 제거
+    // API 파라미터는 별도 서비스 레이어에서 apiId로 조회
 
     // === 비즈니스 로직 메서드 ===
 

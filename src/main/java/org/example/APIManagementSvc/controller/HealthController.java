@@ -1,9 +1,9 @@
 package org.example.APIManagementSvc.controller;
 
-import org.example.APIManagementSvc.dto.common.BaseResponse;
-import io.swagger.v3.oas.annotations.Operation;
-import io.swagger.v3.oas.annotations.tags.Tag;
-import org.springframework.beans.factory.annotation.Value;
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+import org.example.APIManagementSvc.dto.common.ApiResponse;
+import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
@@ -13,49 +13,80 @@ import java.util.HashMap;
 import java.util.Map;
 
 /**
- * 서비스 상태 확인용 Health Check 컨트롤러
- * MSA 환경에서 서비스 가용성 모니터링 및 로드밸런싱을 위한 엔드포인트 제공
- * 
- * 주요 기능:
- * - 서비스 상태 확인 (UP/DOWN)
- * - 애플리케이션 버전 정보 제공
- * - 시스템 정보 제공 (JVM 버전, 시간 등)
- * - Kubernetes 사이드카 서비스나 로드밸런서에서 사용
+ * Health Check Controller
+ * 시스템 상태 및 헬스 체크 엔드포인트 제공
  */
-@Tag(name = "Health Check", description = "서비스 상태 확인 API")
+@Slf4j
 @RestController
 @RequestMapping("/health")
+@RequiredArgsConstructor
 public class HealthController {
 
-    /** 애플리케이션 서비스명 */
-    @Value("${spring.application.name}")
-    private String serviceName;
-
-    /** 빌드 버전 (기본값: dev) */
-    @Value("${BUILD_VERSION:dev}")
-    private String version;
+    /**
+     * 기본 헬스 체크
+     * GET /api/v1/health
+     */
+    @GetMapping
+    public ResponseEntity<ApiResponse<Map<String, Object>>> healthCheck() {
+        log.debug("Health check requested");
+        
+        Map<String, Object> healthInfo = new HashMap<>();
+        healthInfo.put("service", "API Management Service");
+        healthInfo.put("status", "UP");
+        healthInfo.put("timestamp", LocalDateTime.now());
+        healthInfo.put("version", "1.0.0");
+        
+        return ResponseEntity.ok(ApiResponse.success(healthInfo, "서비스가 정상 동작 중입니다."));
+    }
 
     /**
-     * 서비스 상태 확인 엔드포인트
-     * 마이크로서비스의 현재 상태와 시스템 정보를 반환
-     * 
-     * @return BaseResponse<Map<String, Object>> 서비스 상태 정보
+     * 상세 헬스 체크
+     * GET /api/v1/health/detailed
      */
-    @Operation(summary = "서비스 상태 확인", description = "서비스의 현재 상태를 확인합니다.")
-    @GetMapping
-    public BaseResponse<Map<String, Object>> health() {
-        Map<String, Object> status = new HashMap<>();
+    @GetMapping("/detailed")
+    public ResponseEntity<ApiResponse<Map<String, Object>>> detailedHealthCheck() {
+        log.debug("Detailed health check requested");
         
-        // 서비스 기본 정보
-        status.put("service", serviceName);
-        status.put("status", "UP");
-        status.put("version", version);
-        status.put("timestamp", LocalDateTime.now());
+        Map<String, Object> detailedHealth = new HashMap<>();
+        detailedHealth.put("service", "API Management Service");
+        detailedHealth.put("status", "UP");
+        detailedHealth.put("timestamp", LocalDateTime.now());
+        detailedHealth.put("version", "1.0.0");
+        detailedHealth.put("environment", "development");
+        detailedHealth.put("javaVersion", System.getProperty("java.version"));
+        detailedHealth.put("os", System.getProperty("os.name") + " " + System.getProperty("os.version"));
+        detailedHealth.put("memory", getMemoryInfo());
         
-        // JVM 시스템 정보
-        status.put("javaVersion", System.getProperty("java.version"));
-        status.put("javaVendor", System.getProperty("java.vendor"));
+        return ResponseEntity.ok(ApiResponse.success(detailedHealth, "상세 헬스 체크가 완료되었습니다."));
+    }
+
+    /**
+     * 메모리 정보 조회
+     */
+    private Map<String, Object> getMemoryInfo() {
+        Runtime runtime = Runtime.getRuntime();
+        long totalMemory = runtime.totalMemory();
+        long freeMemory = runtime.freeMemory();
+        long usedMemory = totalMemory - freeMemory;
+        long maxMemory = runtime.maxMemory();
         
-        return BaseResponse.success(status, "Service is healthy");
+        Map<String, Object> memoryInfo = new HashMap<>();
+        memoryInfo.put("total", formatBytes(totalMemory));
+        memoryInfo.put("used", formatBytes(usedMemory));
+        memoryInfo.put("free", formatBytes(freeMemory));
+        memoryInfo.put("max", formatBytes(maxMemory));
+        memoryInfo.put("usagePercent", String.format("%.2f%%", (double) usedMemory / totalMemory * 100));
+        
+        return memoryInfo;
+    }
+
+    /**
+     * 바이트를 읽기 쉬운 형태로 변환
+     */
+    private String formatBytes(long bytes) {
+        if (bytes < 1024) return bytes + " B";
+        int exp = (int) (Math.log(bytes) / Math.log(1024));
+        String pre = "KMGTPE".charAt(exp - 1) + "";
+        return String.format("%.1f %sB", bytes / Math.pow(1024, exp), pre);
     }
 }

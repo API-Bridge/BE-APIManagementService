@@ -3,19 +3,22 @@ package org.example.APIManagementSvc.service;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.example.APIManagementSvc.domain.ExternalApi;
-import org.example.APIManagementSvc.domain.ApiParameter;
+import org.example.APIManagementSvc.domain.enums.ApiDomain;
+import org.example.APIManagementSvc.domain.enums.ApiKeyword;
+import org.example.APIManagementSvc.dto.externalapi.ApiStatisticsResponse;
 import org.example.APIManagementSvc.repository.ExternalApiRepository;
-import org.example.APIManagementSvc.repository.ApiParameterRepository;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
-import java.util.UUID;
 
 /**
  * 외부 API 메타데이터 관리 서비스
+ * API 등록, 조회, 수정, 삭제 등의 기본 CRUD 기능 제공
  */
 @Slf4j
 @Service
@@ -24,163 +27,192 @@ import java.util.UUID;
 public class ExternalApiService {
 
     private final ExternalApiRepository externalApiRepository;
-    private final ApiParameterRepository apiParameterRepository;
 
     /**
-     * API 생성
+     * API 등록 (기존 외부 API를 시스템에 등록)
      */
     @Transactional
-    public ExternalApi createApi(ExternalApi api) {
-        log.info("Creating new API: {}", api.getApiName());
+    public ExternalApi registerApi(ExternalApi api) {
+        log.info("Registering API: {}", api.getApiName());
         
-        // API ID 자동 생성
-        api.setApiId(UUID.randomUUID().toString());
+        // 입력값 검증
+        validateApiInput(api);
+        
+        // 중복 확인
+        if (externalApiRepository.existsByApiName(api.getApiName())) {
+            throw new IllegalArgumentException("API with name '" + api.getApiName() + "' already exists");
+        }
+        
+        // 기본값 설정
+        api.setApiEffectiveness(true);
+        api.setDeleted(false);
         api.setCreatedAt(LocalDateTime.now());
         api.setUpdatedAt(LocalDateTime.now());
-        api.setDeleted(false);
         
-        ExternalApi savedApi = externalApiRepository.save(api);
-        log.info("API created successfully with ID: {}", savedApi.getApiId());
+        return externalApiRepository.save(api);
+    }
+
+    /**
+     * API 입력값 검증
+     */
+    private void validateApiInput(ExternalApi api) {
+        if (api.getApiName() == null || api.getApiName().trim().isEmpty()) {
+            throw new IllegalArgumentException("API name is required");
+        }
         
-        return savedApi;
+        if (api.getApiUrl() == null || api.getApiUrl().trim().isEmpty()) {
+            throw new IllegalArgumentException("API URL is required");
+        }
+        
+        if (api.getHttpMethod() == null || api.getHttpMethod().trim().isEmpty()) {
+            throw new IllegalArgumentException("HTTP method is required");
+        }
+        
+        if (api.getApiDomain() == null) {
+            throw new IllegalArgumentException("API domain is required");
+        }
+        
+        if (api.getApiKeyword() == null) {
+            throw new IllegalArgumentException("API keyword is required");
+        }
+        
+        if (api.getApiIssuer() == null || api.getApiIssuer().trim().isEmpty()) {
+            throw new IllegalArgumentException("API issuer is required");
+        }
     }
 
     /**
-     * API 조회 (ID로)
+     * 모든 활성 API 조회 (페이징)
      */
-    public Optional<ExternalApi> getApiById(String apiId) {
-        log.debug("Fetching API by ID: {}", apiId);
-        return externalApiRepository.findById(apiId);
+    public Page<ExternalApi> getApisWithPaging(Pageable pageable) {
+        log.debug("Getting APIs with paging: {}", pageable);
+        return externalApiRepository.findValidApis(pageable);
     }
 
     /**
-     * API 조회 (이름으로)
+     * API 검색 (이름, 설명, 제공기관으로 검색)
      */
-    public Optional<ExternalApi> getApiByName(String apiName) {
-        log.debug("Fetching API by name: {}", apiName);
-        return externalApiRepository.findByApiName(apiName);
-    }
-
-    /**
-     * 모든 활성 API 조회
-     */
-    public List<ExternalApi> getAllActiveApis() {
-        log.debug("Fetching all active APIs");
-        return externalApiRepository.findByDeletedFalse();
+    public List<ExternalApi> searchApis(String query) {
+        log.debug("Searching APIs with query: {}", query);
+        return externalApiRepository.findBySearchTermAndDeletedFalse(query);
     }
 
     /**
      * 도메인별 API 조회
      */
-    public List<ExternalApi> getApisByDomain(String domain) {
-        log.debug("Fetching APIs by domain: {}", domain);
+    public List<ExternalApi> getApisByDomain(ApiDomain domain) {
+        log.debug("Getting APIs by domain: {}", domain);
         return externalApiRepository.findByApiDomainAndDeletedFalse(domain);
     }
 
     /**
      * 키워드별 API 조회
      */
-    public List<ExternalApi> getApisByKeyword(String keyword) {
-        log.debug("Fetching APIs by keyword: {}", keyword);
+    public List<ExternalApi> getApisByKeyword(ApiKeyword keyword) {
+        log.debug("Getting APIs by keyword: {}", keyword);
         return externalApiRepository.findByApiKeywordAndDeletedFalse(keyword);
     }
 
     /**
-     * 소유자별 API 조회
+     * API 통계 조회
      */
-    public List<ExternalApi> getApisByOwner(String ownerId) {
-        log.debug("Fetching APIs by owner: {}", ownerId);
-        return externalApiRepository.findByApiOwnerAndDeletedFalse(ownerId);
+    public ApiStatisticsResponse getApiStatistics() {
+        log.debug("Getting API statistics");
+        
+        long totalApis = externalApiRepository.countByDeletedFalse();
+        long activeApis = externalApiRepository.countByApiEffectivenessTrueAndDeletedFalse();
+        long inactiveApis = totalApis - activeApis;
+        
+        return ApiStatisticsResponse.builder()
+                .totalApis(totalApis)
+                .activeApis(activeApis)
+                .inactiveApis(inactiveApis)
+                .build();
     }
 
     /**
-     * API 업데이트
+     * API ID로 조회
+     */
+    public Optional<ExternalApi> getApiById(String apiId) {
+        log.debug("Getting API by ID: {}", apiId);
+        return externalApiRepository.findByApiId(apiId)
+                .filter(api -> !api.getDeleted());
+    }
+
+    /**
+     * API 이름으로 조회
+     */
+    public Optional<ExternalApi> getApiByName(String apiName) {
+        log.debug("Getting API by name: {}", apiName);
+        return externalApiRepository.findByApiName(apiName)
+                .filter(api -> !api.getDeleted());
+    }
+
+    /**
+     * 모든 활성 API 조회
+     */
+    public List<ExternalApi> getAllActiveApis() {
+        log.debug("Getting all active APIs");
+        return externalApiRepository.findByDeletedFalse();
+    }
+
+    /**
+     * API 수정
      */
     @Transactional
     public ExternalApi updateApi(String apiId, ExternalApi updateData) {
         log.info("Updating API: {}", apiId);
         
-        Optional<ExternalApi> existingApi = externalApiRepository.findById(apiId);
-        if (existingApi.isEmpty()) {
-            throw new IllegalArgumentException("API not found with ID: " + apiId);
-        }
-        
-        ExternalApi api = existingApi.get();
-        
-        // 업데이트 가능한 필드들만 수정
+        ExternalApi existingApi = externalApiRepository.findByApiId(apiId)
+                .filter(api -> !api.getDeleted())
+                .orElseThrow(() -> new IllegalArgumentException("API not found: " + apiId));
+
+        // 업데이트 가능한 필드들 수정
         if (updateData.getApiName() != null) {
-            api.setApiName(updateData.getApiName());
-        }
-        if (updateData.getApiUrl() != null) {
-            api.setApiUrl(updateData.getApiUrl());
-        }
-        if (updateData.getApiIssuer() != null) {
-            api.setApiIssuer(updateData.getApiIssuer());
+            existingApi.setApiName(updateData.getApiName());
         }
         if (updateData.getApiDescription() != null) {
-            api.setApiDescription(updateData.getApiDescription());
+            existingApi.setApiDescription(updateData.getApiDescription());
         }
-        if (updateData.getApiDomain() != null) {
-            api.setApiDomain(updateData.getApiDomain());
-        }
-        if (updateData.getApiKeyword() != null) {
-            api.setApiKeyword(updateData.getApiKeyword());
+        if (updateData.getApiUrl() != null) {
+            existingApi.setApiUrl(updateData.getApiUrl());
         }
         if (updateData.getHttpMethod() != null) {
-            api.setHttpMethod(updateData.getHttpMethod());
+            existingApi.setHttpMethod(updateData.getHttpMethod());
+        }
+        if (updateData.getApiDomain() != null) {
+            existingApi.setApiDomain(updateData.getApiDomain());
+        }
+        if (updateData.getApiKeyword() != null) {
+            existingApi.setApiKeyword(updateData.getApiKeyword());
+        }
+        if (updateData.getApiIssuer() != null) {
+            existingApi.setApiIssuer(updateData.getApiIssuer());
         }
         if (updateData.getApiEffectiveness() != null) {
-            api.setApiEffectiveness(updateData.getApiEffectiveness());
+            existingApi.setApiEffectiveness(updateData.getApiEffectiveness());
         }
+
+        existingApi.setUpdatedAt(LocalDateTime.now());
         
-        api.setUpdatedAt(LocalDateTime.now());
-        
-        ExternalApi updatedApi = externalApiRepository.save(api);
-        log.info("API updated successfully: {}", apiId);
-        
-        return updatedApi;
+        return externalApiRepository.save(existingApi);
     }
 
     /**
-     * API 상태 업데이트 (유효성)
-     */
-    @Transactional
-    public ExternalApi updateApiEffectiveness(String apiId, boolean effectiveness) {
-        log.info("Updating API effectiveness: {} to {}", apiId, effectiveness);
-        
-        Optional<ExternalApi> existingApi = externalApiRepository.findById(apiId);
-        if (existingApi.isEmpty()) {
-            throw new IllegalArgumentException("API not found with ID: " + apiId);
-        }
-        
-        ExternalApi api = existingApi.get();
-        api.setApiEffectiveness(effectiveness);
-        api.setUpdatedAt(LocalDateTime.now());
-        
-        ExternalApi updatedApi = externalApiRepository.save(api);
-        log.info("API effectiveness updated: {} -> {}", apiId, effectiveness);
-        
-        return updatedApi;
-    }
-
-    /**
-     * API 소프트 삭제
+     * API 삭제 (소프트 삭제)
      */
     @Transactional
     public void deleteApi(String apiId) {
-        log.info("Soft deleting API: {}", apiId);
+        log.info("Deleting API (soft): {}", apiId);
         
-        Optional<ExternalApi> existingApi = externalApiRepository.findById(apiId);
-        if (existingApi.isEmpty()) {
-            throw new IllegalArgumentException("API not found with ID: " + apiId);
-        }
-        
-        ExternalApi api = existingApi.get();
+        ExternalApi api = externalApiRepository.findByApiId(apiId)
+                .filter(a -> !a.getDeleted())
+                .orElseThrow(() -> new IllegalArgumentException("API not found: " + apiId));
+
         api.setDeleted(true);
         api.setUpdatedAt(LocalDateTime.now());
         
         externalApiRepository.save(api);
-        log.info("API soft deleted: {}", apiId);
     }
 
     /**
@@ -188,115 +220,28 @@ public class ExternalApiService {
      */
     @Transactional
     public void hardDeleteApi(String apiId) {
-        log.info("Hard deleting API: {}", apiId);
+        log.warn("Hard deleting API: {}", apiId);
         
-        // API 파라미터들도 함께 삭제
-        List<ApiParameter> parameters = apiParameterRepository.findByApiId(apiId);
-        apiParameterRepository.deleteAll(parameters);
-        
-        externalApiRepository.deleteById(apiId);
-        log.info("API hard deleted: {}", apiId);
+        ExternalApi api = externalApiRepository.findByApiId(apiId)
+                .orElseThrow(() -> new IllegalArgumentException("API not found: " + apiId));
+
+        externalApiRepository.delete(api);
     }
 
     /**
-     * API 검색 (이름, 설명, 도메인, 키워드로)
+     * API 유효성 업데이트
      */
-    public List<ExternalApi> searchApis(String searchTerm) {
-        log.debug("Searching APIs with term: {}", searchTerm);
+    @Transactional
+    public ExternalApi updateApiEffectiveness(String apiId, boolean effectiveness) {
+        log.info("Updating API effectiveness: {} to {}", apiId, effectiveness);
         
-        if (searchTerm == null || searchTerm.trim().isEmpty()) {
-            return getAllActiveApis();
-        }
-        
-        String term = searchTerm.toLowerCase().trim();
-        return externalApiRepository.findBySearchTermAndDeletedFalse(term);
-    }
+        ExternalApi api = externalApiRepository.findByApiId(apiId)
+                .filter(a -> !a.getDeleted())
+                .orElseThrow(() -> new IllegalArgumentException("API not found: " + apiId));
 
-    /**
-     * API 통계 정보
-     */
-    public ApiStatistics getApiStatistics() {
-        log.debug("Fetching API statistics");
+        api.setApiEffectiveness(effectiveness);
+        api.setUpdatedAt(LocalDateTime.now());
         
-        long totalApis = externalApiRepository.count();
-        long activeApis = externalApiRepository.countByDeletedFalse();
-        long effectiveApis = externalApiRepository.countByApiEffectivenessTrueAndDeletedFalse();
-        
-        return ApiStatistics.builder()
-                .totalApis(totalApis)
-                .activeApis(activeApis)
-                .effectiveApis(effectiveApis)
-                .inactiveApis(totalApis - activeApis)
-                .ineffectiveApis(activeApis - effectiveApis)
-                .build();
-    }
-
-    /**
-     * API 통계 정보 DTO
-     */
-    public static class ApiStatistics {
-        private final long totalApis;
-        private final long activeApis;
-        private final long effectiveApis;
-        private final long inactiveApis;
-        private final long ineffectiveApis;
-        
-        // Builder 패턴
-        public static Builder builder() {
-            return new Builder();
-        }
-        
-        private ApiStatistics(Builder builder) {
-            this.totalApis = builder.totalApis;
-            this.activeApis = builder.activeApis;
-            this.effectiveApis = builder.effectiveApis;
-            this.inactiveApis = builder.inactiveApis;
-            this.ineffectiveApis = builder.ineffectiveApis;
-        }
-        
-        // Getters
-        public long getTotalApis() { return totalApis; }
-        public long getActiveApis() { return activeApis; }
-        public long getEffectiveApis() { return effectiveApis; }
-        public long getInactiveApis() { return inactiveApis; }
-        public long getIneffectiveApis() { return ineffectiveApis; }
-        
-        public static class Builder {
-            private long totalApis;
-            private long activeApis;
-            private long effectiveApis;
-            private long inactiveApis;
-            private long ineffectiveApis;
-            
-            public Builder totalApis(long totalApis) {
-                this.totalApis = totalApis;
-                return this;
-            }
-            
-            public Builder activeApis(long activeApis) {
-                this.activeApis = activeApis;
-                return this;
-            }
-            
-            public Builder effectiveApis(long effectiveApis) {
-                this.effectiveApis = effectiveApis;
-                return this;
-            }
-            
-            public Builder inactiveApis(long inactiveApis) {
-                this.inactiveApis = inactiveApis;
-                return this;
-            }
-            
-            public Builder ineffectiveApis(long ineffectiveApis) {
-                this.ineffectiveApis = ineffectiveApis;
-                return this;
-            }
-            
-            public ApiStatistics build() {
-                return new ApiStatistics(this);
-            }
-        }
+        return externalApiRepository.save(api);
     }
 }
-

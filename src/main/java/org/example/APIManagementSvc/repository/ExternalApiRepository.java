@@ -38,11 +38,6 @@ public interface ExternalApiRepository extends JpaRepository<ExternalApi, String
     Optional<ExternalApi> findByApiUrl(String apiUrl);
 
     /**
-     * 발급처로 조회
-     */
-    List<ExternalApi> findByApiIssuer(String apiIssuer);
-
-    /**
      * 소유자로 조회
      */
     List<ExternalApi> findByApiOwner(String apiOwner);
@@ -71,15 +66,7 @@ public interface ExternalApiRepository extends JpaRepository<ExternalApi, String
 
     // === HTTP 메소드 기반 조회 ===
 
-    /**
-     * HTTP 메소드로 조회
-     */
-    List<ExternalApi> findByHttpMethod(String httpMethod);
 
-    /**
-     * 도메인과 HTTP 메소드로 조회
-     */
-    List<ExternalApi> findByApiDomainAndHttpMethod(ApiDomain apiDomain, String httpMethod);
 
     // === 유효성 기반 조회 ===
 
@@ -163,11 +150,7 @@ public interface ExternalApiRepository extends JpaRepository<ExternalApi, String
     @Query("SELECT e FROM ExternalApi e WHERE e.deleted = false ORDER BY e.createdAt DESC")
     List<ExternalApi> findRecentApis(Pageable pageable);
 
-    /**
-     * 도메인별 최근 생성된 API 조회
-     */
-    @Query("SELECT e FROM ExternalApi e WHERE e.apiDomain = :domain AND e.deleted = false ORDER BY e.createdAt DESC")
-    List<ExternalApi> findRecentApisByDomain(@Param("domain") ApiDomain domain, Pageable pageable);
+
 
     // === 존재 여부 확인 ===
 
@@ -181,24 +164,11 @@ public interface ExternalApiRepository extends JpaRepository<ExternalApi, String
      */
     boolean existsByApiName(String apiName);
 
-    /**
-     * API URL 존재 여부 확인
-     */
-    boolean existsByApiUrl(String apiUrl);
+
 
     // === 삭제된 API 조회 ===
 
-    /**
-     * 삭제된 API 조회
-     */
-    @Query("SELECT e FROM ExternalApi e WHERE e.deleted = true")
-    List<ExternalApi> findDeletedApis();
 
-    /**
-     * 삭제된 API 개수 조회
-     */
-    @Query("SELECT COUNT(e) FROM ExternalApi e WHERE e.deleted = true")
-    long countDeletedApis();
 
     // === Service에서 필요한 메서드들 ===
 
@@ -210,12 +180,12 @@ public interface ExternalApiRepository extends JpaRepository<ExternalApi, String
     /**
      * 도메인별 삭제되지 않은 API 조회
      */
-    List<ExternalApi> findByApiDomainAndDeletedFalse(String apiDomain);
+    List<ExternalApi> findByApiDomainAndDeletedFalse(ApiDomain apiDomain);
 
     /**
      * 키워드별 삭제되지 않은 API 조회
      */
-    List<ExternalApi> findByApiKeywordAndDeletedFalse(String apiKeyword);
+    List<ExternalApi> findByApiKeywordAndDeletedFalse(ApiKeyword apiKeyword);
 
     /**
      * 소유자별 삭제되지 않은 API 조회
