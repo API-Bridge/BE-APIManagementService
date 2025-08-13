@@ -1,0 +1,24 @@
+# 개발 환경 설정
+spring:
+  profiles:
+    active: dev
+  
+  # 개발 환경에서는 SQL 로그 출력
+  jpa:
+    show-sql: true
+    properties:
+      hibernate:
+        format_sql: true
+  
+  # 데이터베이스 설정 (개발용)
+  datasource:
+    url: jdbc:mysql://localhost:3306/api_management_service_db?allowPublicKeyRetrieval=true&useSSL=false&serverTimezone=UTC&characterEncoding=UTF-8
+    username: root
+    password: 1234
+
+# Gemini AI 설정 (개발용)
+gemini:
+  api:
+    key: AIzaSyC5BwdmxWjfnzuphi0PtoxUdsInFI_59c8
+    url: https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent
+    timeout: 30000

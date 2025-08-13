@@ -90,9 +90,9 @@ auth0:
 # Gemini AI 설정
 gemini:
   api:
-    key: AIzaSyC5BwdmxWjfnzuphi0PtoxUdsInFI_59c8
-    url: https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent
-    timeout: 30000  # 30초 타임아웃
+    key: ${GEMINI_API_KEY:}
+    url: ${GEMINI_API_URL:https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent}
+    timeout: ${GEMINI_TIMEOUT:30000}  # 30초 타임아웃
 
 # AWS 설정
 aws:
