@@ -2,8 +2,8 @@ package org.example.APIManagementSvc.service;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.example.APIManagementSvc.domain.ApiParameter;
-import org.example.APIManagementSvc.domain.ExternalApi;
+import org.example.APIManagementSvc.domain.Entity.ApiParameter;
+import org.example.APIManagementSvc.domain.Entity.ExternalApi;
 import org.example.APIManagementSvc.dto.externalapi.ApiParameterRegisterRequest;
 import org.example.APIManagementSvc.dto.externalapi.ApiParameterResponse;
 import org.example.APIManagementSvc.repository.ApiParameterRepository;

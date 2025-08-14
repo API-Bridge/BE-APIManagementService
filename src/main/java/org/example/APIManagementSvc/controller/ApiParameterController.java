@@ -3,7 +3,7 @@ package org.example.APIManagementSvc.controller;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.example.APIManagementSvc.domain.ApiParameter;
+import org.example.APIManagementSvc.domain.Entity.ApiParameter;
 import org.example.APIManagementSvc.dto.common.ApiResponse;
 import org.example.APIManagementSvc.dto.externalapi.ApiParameterRegisterRequest;
 import org.example.APIManagementSvc.dto.externalapi.ApiParameterResponse;

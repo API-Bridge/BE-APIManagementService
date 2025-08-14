@@ -3,8 +3,8 @@ package org.example.APIManagementSvc.controller;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.example.APIManagementSvc.domain.ApiParameter;
-import org.example.APIManagementSvc.domain.ExternalApi;
+import org.example.APIManagementSvc.domain.Entity.ApiParameter;
+import org.example.APIManagementSvc.domain.Entity.ExternalApi;
 import org.example.APIManagementSvc.domain.enums.ApiDomain;
 import org.example.APIManagementSvc.domain.enums.ApiKeyword;
 import org.example.APIManagementSvc.dto.common.ApiResponse;
@@ -20,9 +20,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
-import java.time.LocalDateTime;
 import java.util.List;
-import java.util.UUID;
 import java.util.stream.Collectors;
 
 /**

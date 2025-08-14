@@ -1,4 +1,4 @@
-package org.example.APIManagementSvc.domain;
+package org.example.APIManagementSvc.domain.Entity;
 
 import com.fasterxml.jackson.annotation.JsonFormat;
 import jakarta.persistence.*;

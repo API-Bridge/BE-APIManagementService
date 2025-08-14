@@ -1,6 +1,6 @@
 package org.example.APIManagementSvc.service;
 
-import org.example.APIManagementSvc.domain.PublicApiRateLimitLog;
+import org.example.APIManagementSvc.domain.Entity.PublicApiRateLimitLog;
 import org.example.APIManagementSvc.domain.enums.RateLimitStatus;
 import org.example.APIManagementSvc.repository.PublicApiRateLimitLogRepository;
 import org.junit.jupiter.api.BeforeEach;

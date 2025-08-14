@@ -1,6 +1,6 @@
 package org.example.APIManagementSvc.repository;
 
-import org.example.APIManagementSvc.domain.PublicApiRateLimitLog;
+import org.example.APIManagementSvc.domain.Entity.PublicApiRateLimitLog;
 import org.example.APIManagementSvc.domain.enums.RateLimitStatus;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;

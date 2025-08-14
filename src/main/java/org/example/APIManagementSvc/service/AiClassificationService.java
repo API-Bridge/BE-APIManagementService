@@ -2,7 +2,7 @@ package org.example.APIManagementSvc.service;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.example.APIManagementSvc.domain.AiClassification;
+import org.example.APIManagementSvc.domain.Entity.AiClassification;
 import org.example.APIManagementSvc.domain.enums.ApiDomain;
 import org.example.APIManagementSvc.domain.enums.ApiKeyword;
 import org.example.APIManagementSvc.repository.AiClassificationRepository;

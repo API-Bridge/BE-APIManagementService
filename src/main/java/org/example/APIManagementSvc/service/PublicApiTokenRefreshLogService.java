@@ -2,7 +2,7 @@ package org.example.APIManagementSvc.service;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.example.APIManagementSvc.domain.PublicApiTokenRefreshLog;
+import org.example.APIManagementSvc.domain.Entity.PublicApiTokenRefreshLog;
 import org.example.APIManagementSvc.domain.enums.RefreshStatus;
 import org.example.APIManagementSvc.repository.PublicApiTokenRefreshLogRepository;
 import org.springframework.data.domain.Page;

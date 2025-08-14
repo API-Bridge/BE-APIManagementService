@@ -1,6 +1,6 @@
 package org.example.APIManagementSvc.repository;
 
-import org.example.APIManagementSvc.domain.PublicApiTokenRefreshLog;
+import org.example.APIManagementSvc.domain.Entity.PublicApiTokenRefreshLog;
 import org.example.APIManagementSvc.domain.enums.RefreshStatus;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;

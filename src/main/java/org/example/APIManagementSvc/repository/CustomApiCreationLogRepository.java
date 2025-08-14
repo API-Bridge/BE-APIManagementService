@@ -1,6 +1,6 @@
 package org.example.APIManagementSvc.repository;
 
-import org.example.APIManagementSvc.domain.CustomApiCreationLog;
+import org.example.APIManagementSvc.domain.Entity.CustomApiCreationLog;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;

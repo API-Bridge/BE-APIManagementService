@@ -2,7 +2,7 @@ package org.example.APIManagementSvc.service;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.example.APIManagementSvc.domain.ExternalApi;
+import org.example.APIManagementSvc.domain.Entity.ExternalApi;
 import org.example.APIManagementSvc.domain.enums.ApiDomain;
 import org.example.APIManagementSvc.domain.enums.ApiKeyword;
 import org.example.APIManagementSvc.dto.externalapi.ApiStatisticsResponse;
