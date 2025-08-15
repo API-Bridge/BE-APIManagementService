@@ -54,6 +54,8 @@ dependencies {
     // Documentation (Swagger/OpenAPI)
     implementation 'org.springdoc:springdoc-openapi-starter-webmvc-ui:2.2.0'
     
+    // AI Integration - Gemini AI (HTTP Client 기반)
+    
     testImplementation 'org.springframework.boot:spring-boot-starter-test'
     testImplementation 'org.springframework.kafka:spring-kafka-test'
     

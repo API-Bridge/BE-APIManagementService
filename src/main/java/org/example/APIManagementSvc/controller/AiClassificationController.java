@@ -22,7 +22,7 @@ import java.util.stream.Collectors;
  */
 @Slf4j
 @RestController
-@RequestMapping("/ai-classifications")
+@RequestMapping("/api-management/ai/classifications")
 @RequiredArgsConstructor
 public class AiClassificationController {
 

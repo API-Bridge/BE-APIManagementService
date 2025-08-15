@@ -172,3 +172,35 @@ spec:
 ## 📝 API 문서
 
 Swagger UI: `http://localhost:8080/api/v1/swagger-ui.html`
+
+## 🚀 **AI 연동 설정 (Gemini AI)**
+
+### **1. Gemini AI API 키 발급**
+1. [Google AI Studio](https://makersuite.google.com/app/apikey)에서 API 키 발급
+2. 또는 [Google Cloud Console](https://console.cloud.google.com/)에서 AI 관련 API 활성화 후 키 발급
+
+### **2. 환경변수 설정**
+```bash
+# macOS/Linux
+export GEMINI_API_KEY="your-api-key-here"
+
+# Windows
+set GEMINI_API_KEY=your-api-key-here
+```
+
+### **3. 애플리케이션 실행**
+```bash
+./gradlew bootRun
+```
+
+### **4. AI 분류 테스트**
+```bash
+curl -X POST http://localhost:8080/api/v1/api-management/ai/classifications/classify \
+  -H "Content-Type: application/json" \
+  -d '{
+    "apiId": "test-001",
+    "apiName": "주식 시세 조회 API",
+    "apiDescription": "실시간 주식 가격 정보를 제공하는 API",
+    "apiUrl": "https://api.example.com/stock/price"
+  }'
+```

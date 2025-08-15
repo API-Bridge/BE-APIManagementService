@@ -26,3 +26,4 @@ public class AiClassificationRequest {
     private String apiUrl;
 }
 
+

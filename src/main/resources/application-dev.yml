@@ -1,9 +1,7 @@
 # 개발 환경 설정
+
+# 개발 환경에서는 SQL 로그 출력
 spring:
-  profiles:
-    active: dev
-  
-  # 개발 환경에서는 SQL 로그 출력
   jpa:
     show-sql: true
     properties:
@@ -16,9 +14,11 @@ spring:
     username: root
     password: 1234
 
-# Gemini AI 설정 (개발용)
+# Gemini AI 설정
 gemini:
   api:
-    key: AIzaSyC5BwdmxWjfnzuphi0PtoxUdsInFI_59c8
+    key: ${GEMINI_API_KEY:}  # 환경변수에서 API 키를 가져옴
+    model:
+      name: gemini-1.5-flash
     url: https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent
     timeout: 30000
