@@ -2,7 +2,7 @@ package org.example.APIManagementSvc.service;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.example.APIManagementSvc.domain.CustomApiCreationLog;
+import org.example.APIManagementSvc.domain.Entity.CustomApiCreationLog;
 import org.example.APIManagementSvc.repository.CustomApiCreationLogRepository;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;

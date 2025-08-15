@@ -1,6 +1,6 @@
 package org.example.APIManagementSvc.repository;
 
-import org.example.APIManagementSvc.domain.AiClassification;
+import org.example.APIManagementSvc.domain.Entity.AiClassification;
 import org.example.APIManagementSvc.domain.enums.ApiDomain;
 import org.example.APIManagementSvc.domain.enums.ApiKeyword;
 import org.springframework.data.jpa.repository.JpaRepository;

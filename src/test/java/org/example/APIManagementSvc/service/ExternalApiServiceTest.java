@@ -1,6 +1,6 @@
 package org.example.APIManagementSvc.service;
 
-import org.example.APIManagementSvc.domain.ExternalApi;
+import org.example.APIManagementSvc.domain.Entity.ExternalApi;
 import org.example.APIManagementSvc.domain.enums.ApiDomain;
 import org.example.APIManagementSvc.domain.enums.ApiKeyword;
 import org.example.APIManagementSvc.repository.ExternalApiRepository;
@@ -13,7 +13,6 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.time.LocalDateTime;
-import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;

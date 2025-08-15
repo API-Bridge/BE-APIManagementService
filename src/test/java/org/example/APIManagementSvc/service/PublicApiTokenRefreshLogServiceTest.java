@@ -1,6 +1,6 @@
 package org.example.APIManagementSvc.service;
 
-import org.example.APIManagementSvc.domain.PublicApiTokenRefreshLog;
+import org.example.APIManagementSvc.domain.Entity.PublicApiTokenRefreshLog;
 import org.example.APIManagementSvc.domain.enums.RefreshStatus;
 import org.example.APIManagementSvc.repository.PublicApiTokenRefreshLogRepository;
 import org.junit.jupiter.api.BeforeEach;

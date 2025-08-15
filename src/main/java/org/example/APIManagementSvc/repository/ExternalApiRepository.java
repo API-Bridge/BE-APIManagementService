@@ -1,6 +1,6 @@
 package org.example.APIManagementSvc.repository;
 
-import org.example.APIManagementSvc.domain.ExternalApi;
+import org.example.APIManagementSvc.domain.Entity.ExternalApi;
 import org.example.APIManagementSvc.domain.enums.ApiDomain;
 import org.example.APIManagementSvc.domain.enums.ApiKeyword;
 import org.springframework.data.domain.Page;

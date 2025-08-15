@@ -1,15 +1,13 @@
-package org.example.APIManagementSvc.domain;
+package org.example.APIManagementSvc.domain.Entity;
 
 import jakarta.persistence.*;
 import lombok.Getter;
 import lombok.Setter;
 import org.example.APIManagementSvc.domain.enums.ApiDomain;
 import org.example.APIManagementSvc.domain.enums.ApiKeyword;
-import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonFormat;
 
 import java.time.LocalDateTime;
-import java.util.List;
 
 /**
  * 외부 API 메타데이터 엔티티

@@ -2,7 +2,7 @@ package org.example.APIManagementSvc.service;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.example.APIManagementSvc.domain.PublicApiRateLimitLog;
+import org.example.APIManagementSvc.domain.Entity.PublicApiRateLimitLog;
 import org.example.APIManagementSvc.domain.enums.RateLimitStatus;
 import org.example.APIManagementSvc.repository.PublicApiRateLimitLogRepository;
 import org.springframework.data.domain.Page;

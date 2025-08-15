@@ -2,7 +2,7 @@ package org.example.APIManagementSvc.service;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.example.APIManagementSvc.domain.PublicApiManagementLog;
+import org.example.APIManagementSvc.domain.Entity.PublicApiManagementLog;
 import org.example.APIManagementSvc.domain.enums.OperationType;
 import org.example.APIManagementSvc.repository.PublicApiManagementLogRepository;
 import org.springframework.data.domain.PageRequest;
