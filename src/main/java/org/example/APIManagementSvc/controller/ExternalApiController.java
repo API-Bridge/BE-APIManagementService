@@ -3,6 +3,7 @@ package org.example.APIManagementSvc.controller;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.example.APIManagementSvc.annotation.RateLimit;
 import org.example.APIManagementSvc.domain.Entity.ApiParameter;
 import org.example.APIManagementSvc.domain.Entity.ExternalApi;
 import org.example.APIManagementSvc.domain.enums.ApiDomain;
@@ -21,11 +22,18 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
+import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
 /**
  * External API 관리 Controller
  * 프로덕션용 REST API 엔드포인트 제공
+ * 
+ * Rate Limiting 정책:
+ * - API 등록/수정/삭제/복사: 1시간에 최대 50회 (관리자 작업)
+ * - API 조회/검색: 1시간에 최대 1000회 (일반 사용자)
+ * - API 통계: 1시간에 최대 500회 (관리자/분석가)
+ * - API 유효성 검증: 1시간에 최대 200회 (개발자 도구)
  */
 @Slf4j
 @RestController
@@ -38,10 +46,10 @@ public class ExternalApiController {
 
     /**
      * 새로운 External API 등록
-     * @param request API 등록 요청 데이터
-     * @return 등록된 API 정보
+     * Rate Limit: 1시간에 최대 50회 (관리자 작업)
      */
     @PostMapping
+    @RateLimit(value = 50, timeUnit = TimeUnit.HOURS, keyType = RateLimit.KeyType.IP_ADDRESS)
     public ResponseEntity<ApiResponse<ExternalApiResponse>> registerApi(
             @Valid @RequestBody ExternalApiRegisterRequest request) {
         log.info("Registering new API: {}", request.getApiName());
@@ -74,9 +82,11 @@ public class ExternalApiController {
 
     /**
      * API 상세 조회
+     * Rate Limit: 1시간에 최대 1000회 (일반 사용자)
      * GET /api/v1/external-apis/{apiId}
      */
     @GetMapping("/{apiId}")
+    @RateLimit(value = 1000, timeUnit = TimeUnit.HOURS, keyType = RateLimit.KeyType.IP_ADDRESS)
     public ResponseEntity<ApiResponse<Object>> getApiDetail(@PathVariable String apiId) {
         log.info("Getting API detail: {}", apiId);
         
@@ -99,9 +109,11 @@ public class ExternalApiController {
 
     /**
      * API 목록 조회 (페이징)
+     * Rate Limit: 1시간에 최대 1000회 (일반 사용자)
      * GET /api/v1/external-apis
      */
     @GetMapping
+    @RateLimit(value = 1000, timeUnit = TimeUnit.HOURS, keyType = RateLimit.KeyType.IP_ADDRESS)
     public ResponseEntity<ApiResponse<PageResponse<ExternalApiResponse>>> getApis(
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "10") int size,
@@ -141,9 +153,11 @@ public class ExternalApiController {
 
     /**
      * API 수정
+     * Rate Limit: 1시간에 최대 50회 (관리자 작업)
      * PUT /api/v1/external-apis/{apiId}
      */
     @PutMapping("/{apiId}")
+    @RateLimit(value = 50, timeUnit = TimeUnit.HOURS, keyType = RateLimit.KeyType.IP_ADDRESS)
     public ResponseEntity<ApiResponse<ExternalApiResponse>> updateApi(
             @PathVariable String apiId,
             @Valid @RequestBody ExternalApiUpdateRequest request) {
@@ -178,9 +192,11 @@ public class ExternalApiController {
 
     /**
      * API 삭제
+     * Rate Limit: 1시간에 최대 20회 (관리자 작업)
      * DELETE /api/v1/external-apis/{apiId}
      */
     @DeleteMapping("/{apiId}")
+    @RateLimit(value = 20, timeUnit = TimeUnit.HOURS, keyType = RateLimit.KeyType.IP_ADDRESS)
     public ResponseEntity<ApiResponse<Void>> deleteApi(@PathVariable String apiId) {
         log.info("Deleting API: {}", apiId);
         
@@ -203,9 +219,11 @@ public class ExternalApiController {
 
     /**
      * API 검색
+     * Rate Limit: 1시간에 최대 1000회 (일반 사용자)
      * GET /api/v1/external-apis/search
      */
     @GetMapping("/search")
+    @RateLimit(value = 1000, timeUnit = TimeUnit.HOURS, keyType = RateLimit.KeyType.IP_ADDRESS)
     public ResponseEntity<ApiResponse<List<ExternalApiResponse>>> searchApis(
             @RequestParam String q) {
         
@@ -232,9 +250,11 @@ public class ExternalApiController {
 
     /**
      * 도메인별 API 조회
+     * Rate Limit: 1시간에 최대 1000회 (일반 사용자)
      * GET /api/v1/external-apis/domain/{domain}
      */
     @GetMapping("/domain/{domain}")
+    @RateLimit(value = 1000, timeUnit = TimeUnit.HOURS, keyType = RateLimit.KeyType.IP_ADDRESS)
     public ResponseEntity<ApiResponse<List<ExternalApiResponse>>> getApisByDomain(
             @PathVariable ApiDomain domain) {
         
@@ -261,9 +281,11 @@ public class ExternalApiController {
 
     /**
      * 키워드별 API 조회
+     * Rate Limit: 1시간에 최대 1000회 (일반 사용자)
      * GET /api/v1/external-apis/keyword/{keyword}
      */
     @GetMapping("/keyword/{keyword}")
+    @RateLimit(value = 1000, timeUnit = TimeUnit.HOURS, keyType = RateLimit.KeyType.IP_ADDRESS)
     public ResponseEntity<ApiResponse<List<ExternalApiResponse>>> getApisByKeyword(
             @PathVariable ApiKeyword keyword) {
         
@@ -290,9 +312,11 @@ public class ExternalApiController {
 
     /**
      * API 통계 조회
+     * Rate Limit: 1시간에 최대 500회 (관리자/분석가)
      * GET /api/v1/external-apis/statistics
      */
     @GetMapping("/statistics")
+    @RateLimit(value = 500, timeUnit = TimeUnit.HOURS, keyType = RateLimit.KeyType.IP_ADDRESS)
     public ResponseEntity<ApiResponse<ApiStatisticsResponse>> getApiStatistics() {
         log.info("Getting API statistics");
         
@@ -310,9 +334,11 @@ public class ExternalApiController {
 
     /**
      * API 유효성 검증
+     * Rate Limit: 1시간에 최대 200회 (개발자 도구)
      * POST /api/v1/external-apis/{apiId}/validate
      */
     @PostMapping("/{apiId}/validate")
+    @RateLimit(value = 200, timeUnit = TimeUnit.HOURS, keyType = RateLimit.KeyType.IP_ADDRESS)
     public ResponseEntity<ApiResponse<Object>> validateApi(@PathVariable String apiId) {
         log.info("Validating API: {}", apiId);
         
@@ -334,9 +360,11 @@ public class ExternalApiController {
 
     /**
      * API 복사
+     * Rate Limit: 1시간에 최대 50회 (관리자 작업)
      * POST /api/v1/external-apis/{apiId}/copy
      */
     @PostMapping("/{apiId}/copy")
+    @RateLimit(value = 50, timeUnit = TimeUnit.HOURS, keyType = RateLimit.KeyType.IP_ADDRESS)
     public ResponseEntity<ApiResponse<ExternalApiResponse>> copyApi(
             @PathVariable String apiId,
             @RequestParam String newName) {
