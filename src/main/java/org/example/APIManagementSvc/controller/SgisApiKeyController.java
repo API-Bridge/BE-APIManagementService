@@ -8,6 +8,7 @@ import org.example.APIManagementSvc.dto.common.ApiResponse;
 import org.example.APIManagementSvc.dto.common.PageResponse;
 import org.example.APIManagementSvc.dto.sgis.SgisApiKeyRequest;
 import org.example.APIManagementSvc.dto.sgis.SgisApiKeyResponse;
+import org.example.APIManagementSvc.service.RedisCacheService;
 import org.example.APIManagementSvc.service.SgisApiKeyService;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -65,6 +66,7 @@ import java.util.stream.Collectors;
 public class SgisApiKeyController {
 
     private final SgisApiKeyService sgisApiKeyService;
+    private final RedisCacheService redisCacheService;
 
     /**
      * 이미 발급받은 SGIS API 키를 시스템에 등록
@@ -95,6 +97,10 @@ public class SgisApiKeyController {
             // 응답 DTO로 변환
             SgisApiKeyResponse response = convertToResponse(registeredApiKey);
             
+            // 캐시 무효화: 새로운 API 키 등록 후 목록 캐시 삭제
+            redisCacheService.invalidateApiKeyListCache();
+            log.info("새로운 API 키 등록 후 목록 캐시를 무효화했습니다");
+            
             return ResponseEntity.ok(ApiResponse.success(response, "SGIS API 키가 성공적으로 등록되었습니다"));
             
         } catch (Exception e) {
@@ -113,9 +119,22 @@ public class SgisApiKeyController {
         
         log.info("SGIS API 키 조회 요청: Key ID={}", keyId);
         
+        // 1. Redis에서 먼저 조회
+        Object cached = redisCacheService.getApiKey(keyId);
+        if (cached instanceof SgisApiKeyResponse) {
+            log.info("Redis 캐시에서 API 키 정보를 조회했습니다: {}", keyId);
+            return ResponseEntity.ok(ApiResponse.success((SgisApiKeyResponse) cached, "캐시에서 API 키 정보를 조회했습니다"));
+        }
+        
+        // 2. DB에서 조회
         return sgisApiKeyService.getApiKey(keyId)
             .map(apiKey -> {
                 SgisApiKeyResponse response = convertToResponse(apiKey);
+                
+                // 3. Redis에 캐싱 (30분 TTL)
+                redisCacheService.cacheApiKey(keyId, response, 1800);
+                log.info("DB에서 API 키 정보를 조회하고 Redis에 캐싱했습니다: {}", keyId);
+                
                 return ResponseEntity.ok(ApiResponse.success(response, "API 키 정보를 조회했습니다"));
             })
             .orElse(ResponseEntity.notFound().build());
@@ -149,6 +168,15 @@ public class SgisApiKeyController {
         
         log.info("모든 API 키 목록 조회 요청: Page={}, Size={}", pageable.getPageNumber(), pageable.getPageSize());
         
+        // 1. Redis에서 먼저 조회 (페이지별 캐싱)
+        String cacheKey = "api-keys:page:" + pageable.getPageNumber() + ":size:" + pageable.getPageSize();
+        Object cached = redisCacheService.getApiKeyList(cacheKey);
+        if (cached instanceof PageResponse) {
+            log.info("Redis 캐시에서 API 키 목록을 조회했습니다: {}", cacheKey);
+            return ResponseEntity.ok(ApiResponse.success((PageResponse<SgisApiKeyResponse>) cached, "캐시에서 API 키 목록을 조회했습니다"));
+        }
+        
+        // 2. DB에서 조회
         Page<SgisApiKey> apiKeyPage = sgisApiKeyService.getAllApiKeys(pageable);
         
         List<SgisApiKeyResponse> responses = apiKeyPage.getContent().stream()
@@ -162,6 +190,10 @@ public class SgisApiKeyController {
             .pageNumber(apiKeyPage.getNumber())
             .pageSize(apiKeyPage.getSize())
             .build();
+        
+        // 3. Redis에 캐싱 (15분 TTL)
+        redisCacheService.cacheApiKeyList(cacheKey, pageResponse, 900);
+        log.info("DB에서 API 키 목록을 조회하고 Redis에 캐싱했습니다: {}", cacheKey);
         
         return ResponseEntity.ok(ApiResponse.success(pageResponse, "API 키 목록을 조회했습니다"));
     }
@@ -243,6 +275,11 @@ public class SgisApiKeyController {
             // 응답 DTO로 변환
             SgisApiKeyResponse response = convertToResponse(updatedApiKey);
             
+            // 캐시 무효화: 수정된 API 키와 관련된 모든 캐시 삭제
+            redisCacheService.invalidateApiKeyCache(keyId);
+            redisCacheService.invalidateApiKeyListCache();
+            log.info("API 키 수정 후 관련 캐시를 무효화했습니다: {}", keyId);
+            
             return ResponseEntity.ok(ApiResponse.success(response, "API 키 정보가 수정되었습니다"));
             
         } catch (Exception e) {
@@ -267,6 +304,11 @@ public class SgisApiKeyController {
             SgisApiKey updatedApiKey = sgisApiKeyService.updateApiKeyStatus(keyId, status);
             SgisApiKeyResponse response = convertToResponse(updatedApiKey);
             
+            // 캐시 무효화: 상태가 변경된 API 키와 관련된 모든 캐시 삭제
+            redisCacheService.invalidateApiKeyCache(keyId);
+            redisCacheService.invalidateApiKeyListCache();
+            log.info("API 키 상태 변경 후 관련 캐시를 무효화했습니다: {}", keyId);
+            
             return ResponseEntity.ok(ApiResponse.success(response, "API 키 상태가 변경되었습니다"));
             
         } catch (Exception e) {
@@ -289,6 +331,11 @@ public class SgisApiKeyController {
             boolean revoked = sgisApiKeyService.revokeApiKey(keyId);
             
             if (revoked) {
+                // 캐시 무효화: 폐기된 API 키와 관련된 모든 캐시 삭제
+                redisCacheService.invalidateApiKeyCache(keyId);
+                redisCacheService.invalidateApiKeyListCache();
+                log.info("API 키 폐기 후 관련 캐시를 무효화했습니다: {}", keyId);
+                
                 return ResponseEntity.ok(ApiResponse.success("API 키가 성공적으로 폐기되었습니다"));
             } else {
                 return ResponseEntity.badRequest()

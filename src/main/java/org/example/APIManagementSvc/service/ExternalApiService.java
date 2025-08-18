@@ -114,6 +114,17 @@ public class ExternalApiService {
     }
 
     /**
+     * 도메인과 키워드 조합으로 API 조회
+     */
+    public List<ExternalApi> getApisByDomainAndKeyword(ApiDomain domain, ApiKeyword keyword) {
+        log.debug("Getting APIs by domain: {} and keyword: {}", domain, keyword);
+        return externalApiRepository.findByApiDomainAndApiKeyword(domain, keyword)
+                .stream()
+                .filter(api -> !api.getDeleted())
+                .toList();
+    }
+
+    /**
      * API 통계 조회
      */
     public ApiStatisticsResponse getApiStatistics() {

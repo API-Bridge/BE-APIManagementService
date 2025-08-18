@@ -1,32 +1,18 @@
 package org.example.APIManagementSvc.controller;
 
+import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.example.APIManagementSvc.annotation.RateLimit;
-import org.example.APIManagementSvc.dto.cache.ApiStatusCacheDto;
-import org.example.APIManagementSvc.dto.cache.CacheKeyDto;
 import org.example.APIManagementSvc.dto.common.ApiResponse;
 import org.example.APIManagementSvc.service.RedisCacheService;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.*;
 
-import java.time.LocalDateTime;
 import java.util.HashMap;
 import java.util.Map;
-import java.util.concurrent.TimeUnit;
 
 /**
  * Redis 캐싱 기능을 테스트하기 위한 컨트롤러입니다.
  * 
  * ⚠️  중요: 이 컨트롤러는 Redis 캐싱 시스템의 동작을 테스트합니다!
- * - API 상태 정보 캐싱 테스트
- * - API 사용량 통계 캐싱 테스트
- * - 캐시 관리 및 모니터링 테스트
- * 
- * 테스트 시나리오:
- * 1. API 상태 정보 캐싱 및 조회
- * 2. API 사용량 통계 캐싱 및 조회
- * 3. 캐시 무효화 및 통계 조회
- * 4. 캐시 TTL 연장 및 정리
  * 
  * @author API Management Service Team
  * @version 1.0.0
@@ -34,337 +20,161 @@ import java.util.concurrent.TimeUnit;
  */
 @Slf4j
 @RestController
-@RequestMapping("/api/v1/redis-cache-test")
+@RequestMapping("/redis-cache-test")
+@RequiredArgsConstructor
 public class RedisCacheTestController {
     
-    @Autowired
-    private RedisCacheService redisCacheService;
-    
-    // ==================== API 상태 정보 캐싱 테스트 ====================
+    private final RedisCacheService redisCacheService;
     
     /**
-     * API 상태 정보를 캐시에 저장합니다.
-     * 
-     * @param apiId API 식별자
-     * @return API 응답
+     * 간단한 테스트 엔드포인트
      */
-    @PostMapping("/cache-api-status/{apiId}")
-    @RateLimit(value = 10, timeUnit = TimeUnit.MINUTES, keyType = RateLimit.KeyType.IP_ADDRESS)
-    public ApiResponse<String> cacheApiStatus(@PathVariable String apiId) {
-        try {
-            // 테스트용 API 상태 정보 생성
-            ApiStatusCacheDto apiStatus = ApiStatusCacheDto.builder()
-                    .apiId(apiId)
-                    .apiName("테스트 API - " + apiId)
-                    .domain(org.example.APIManagementSvc.domain.enums.ApiDomain.GOVERNMENT)
-                    .keyword(org.example.APIManagementSvc.domain.enums.ApiKeyword.STATISTICS)
-                    .status("ACTIVE")
-                    .dailyLimit(5000L)
-                    .monthlyLimit(100000L)
-                    .currentDailyUsage(1250L)
-                    .currentMonthlyUsage(35000L)
-                    .lastUsedAt(LocalDateTime.now())
-                    .provider("SGIS")
-                    .version("1.0.0")
-                    .documentationUrl("https://sgis.kr/api/docs/" + apiId)
-                    .supportContact("support@sgis.kr")
-                    .lastUpdated(LocalDateTime.now())
-                    .ttlSeconds(1800L) // 30분
-                    .build();
+    @GetMapping("/test")
+    public ApiResponse<String> test() {
+        log.info("Redis 캐시 테스트 컨트롤러 테스트 엔드포인트 호출");
+        return ApiResponse.success("Redis 캐시 테스트 컨트롤러가 정상적으로 등록되었습니다!");
+    }
+    
+    /**
+     * 상태 확인 엔드포인트
+     */
+    @GetMapping("/status")
+    public ApiResponse<String> status() {
+        log.info("Redis 캐시 테스트 컨트롤러 상태 확인");
+        return ApiResponse.success("Redis 캐시 테스트 컨트롤러 정상 동작 중");
+    }
+    
+    /**
+     * 캐시 저장 테스트
+     */
+    @PostMapping("/cache/{key}")
+    public ApiResponse<String> setCache(@PathVariable String key, @RequestBody Map<String, Object> value) {
+        log.info("캐시 저장 테스트: key={}, value={}", key, value);
+        
+        // API 키 캐싱 메소드를 이용해 테스트 데이터 저장 (TTL: 5분)
+        boolean success = redisCacheService.cacheApiKey("test:" + key, value, 300);
+        
+        if (success) {
+            return ApiResponse.success("캐시 저장 성공: " + key);
+        } else {
+            return ApiResponse.error("캐시 저장 실패: " + key);
+        }
+    }
+    
+    /**
+     * 캐시 조회 테스트
+     */
+    @GetMapping("/cache/{key}")
+    public ApiResponse<Object> getCache(@PathVariable String key) {
+        log.info("캐시 조회 테스트: key={}", key);
+        
+        Object cached = redisCacheService.getApiKey("test:" + key);
+        
+        if (cached != null) {
+            return ApiResponse.success(cached, "캐시 조회 성공 (Cache Hit)");
+        } else {
+            return ApiResponse.success(null, "캐시 조회 실패 (Cache Miss)");
+        }
+    }
+    
+    /**
+     * 캐시 삭제 테스트
+     */
+    @DeleteMapping("/cache/{key}")
+    public ApiResponse<String> deleteCache(@PathVariable String key) {
+        log.info("캐시 삭제 테스트: key={}", key);
+        
+        boolean success = redisCacheService.invalidateApiKeyCache("test:" + key);
+        
+        if (success) {
+            return ApiResponse.success("캐시 삭제 성공: " + key);
+        } else {
+            return ApiResponse.error("캐시 삭제 실패: " + key);
+        }
+    }
+    
+    /**
+     * 캐시 통계 조회
+     */
+    @GetMapping("/stats")
+    public ApiResponse<Map<String, Object>> getCacheStats() {
+        log.info("캐시 통계 조회");
+        
+        Map<String, Object> stats = redisCacheService.getCacheStatistics();
+        return ApiResponse.success(stats, "캐시 통계 조회 성공");
+    }
+    
+    /**
+     * 성능 테스트 - 여러 값 저장
+     */
+    @PostMapping("/performance-test/{count}")
+    public ApiResponse<Map<String, Object>> performanceTest(@PathVariable int count) {
+        log.info("성능 테스트 시작: {}개 데이터 저장/조회", count);
+        
+        long startTime = System.currentTimeMillis();
+        int successCount = 0;
+        
+        // 저장 테스트
+        for (int i = 0; i < count; i++) {
+            Map<String, Object> testData = new HashMap<>();
+            testData.put("id", i);
+            testData.put("name", "test-" + i);
+            testData.put("timestamp", System.currentTimeMillis());
             
-            boolean success = redisCacheService.cacheApiStatus(apiId, apiStatus);
-            
-            if (success) {
-                log.info("API 상태 정보 캐시 저장 성공: {}", apiId);
-                return ApiResponse.<String>builder()
-                        .success(true)
-                        .message("API 상태 정보가 성공적으로 캐시에 저장되었습니다")
-                        .data("API ID: " + apiId + " - 상태 정보 캐시 저장 완료")
-                        .build();
-            } else {
-                log.error("API 상태 정보 캐시 저장 실패: {}", apiId);
-                return ApiResponse.<String>builder()
-                        .success(false)
-                        .message("API 상태 정보 캐시 저장에 실패했습니다")
-                        .data("API ID: " + apiId + " - 상태 정보 캐시 저장 실패")
-                        .build();
+            if (redisCacheService.cacheApiKey("perf-test:" + i, testData, 600)) {
+                successCount++;
             }
-            
-        } catch (Exception e) {
-            log.error("API 상태 정보 캐시 저장 중 오류 발생: {}", apiId, e);
-            return ApiResponse.<String>builder()
-                    .success(false)
-                    .message("API 상태 정보 캐시 저장 중 오류가 발생했습니다: " + e.getMessage())
-                    .data("API ID: " + apiId + " - 오류 발생")
-                    .build();
         }
-    }
-    
-    /**
-     * 캐시에서 API 상태 정보를 조회합니다.
-     * 
-     * @param apiId API 식별자
-     * @return API 응답
-     */
-    @GetMapping("/get-api-status/{apiId}")
-    @RateLimit(value = 20, timeUnit = TimeUnit.MINUTES, keyType = RateLimit.KeyType.IP_ADDRESS)
-    public ApiResponse<Object> getApiStatus(@PathVariable String apiId) {
-        try {
-            ApiStatusCacheDto apiStatus = redisCacheService.getApiStatus(apiId);
-            
-            if (apiStatus != null) {
-                log.info("API 상태 정보 캐시 조회 성공: {}", apiId);
-                return ApiResponse.builder()
-                        .success(true)
-                        .message("API 상태 정보를 캐시에서 조회했습니다")
-                        .data(apiStatus)
-                        .build();
-            } else {
-                log.info("API 상태 정보 캐시 미스: {}", apiId);
-                return ApiResponse.builder()
-                        .success(false)
-                        .message("캐시에서 API 상태 정보를 찾을 수 없습니다")
-                        .data("API ID: " + apiId + " - 캐시 미스")
-                        .build();
+        
+        long writeTime = System.currentTimeMillis() - startTime;
+        
+        // 조회 테스트
+        int hitCount = 0;
+        long readStartTime = System.currentTimeMillis();
+        
+        for (int i = 0; i < count; i++) {
+            Object cached = redisCacheService.getApiKey("perf-test:" + i);
+            if (cached != null) {
+                hitCount++;
             }
-            
-        } catch (Exception e) {
-            log.error("API 상태 정보 캐시 조회 중 오류 발생: {}", apiId, e);
-            return ApiResponse.builder()
-                    .success(false)
-                    .message("API 상태 정보 캐시 조회 중 오류가 발생했습니다: " + e.getMessage())
-                    .data("API ID: " + apiId + " - 오류 발생")
-                    .build();
         }
-    }
-    
-    // ==================== API 사용량 통계 캐싱 테스트 ====================
-    
-    /**
-     * API 사용량 통계를 캐시에 저장합니다.
-     * 
-     * @param apiId API 식별자
-     * @return API 응답
-     */
-    @PostMapping("/cache-api-usage-stats/{apiId}")
-    @RateLimit(value = 10, timeUnit = TimeUnit.MINUTES, keyType = RateLimit.KeyType.IP_ADDRESS)
-    public ApiResponse<String> cacheApiUsageStats(@PathVariable String apiId) {
-        try {
-            // 테스트용 사용량 통계 데이터 생성
-            Map<String, Object> usageStats = new HashMap<>();
-            usageStats.put("apiId", apiId);
-            usageStats.put("timestamp", LocalDateTime.now().toString());
-            usageStats.put("dailyRequests", 1250L);
-            usageStats.put("monthlyRequests", 35000L);
-            usageStats.put("dailySuccess", 1240L);
-            usageStats.put("monthlySuccess", 34800L);
-            usageStats.put("dailyFailures", 10L);
-            usageStats.put("monthlyFailures", 200L);
-            usageStats.put("peakHour", "14:00");
-            usageStats.put("popularUsers", new String[]{"org1", "org2", "org3"});
-            usageStats.put("averageResponseTime", 150L);
-            usageStats.put("lastUpdated", LocalDateTime.now().toString());
-            
-            boolean success = redisCacheService.cacheApiUsageStats(apiId, usageStats);
-            
-            if (success) {
-                log.info("API 사용량 통계 캐시 저장 성공: {}", apiId);
-                return ApiResponse.<String>builder()
-                        .success(true)
-                        .message("API 사용량 통계가 성공적으로 캐시에 저장되었습니다")
-                        .data("API ID: " + apiId + " - 사용량 통계 캐시 저장 완료")
-                        .build();
-            } else {
-                log.error("API 사용량 통계 캐시 저장 실패: {}", apiId);
-                return ApiResponse.<String>builder()
-                        .success(false)
-                        .message("API 사용량 통계 캐시 저장에 실패했습니다")
-                        .data("API ID: " + apiId + " - 사용량 통계 캐시 저장 실패")
-                        .build();
-            }
-            
-        } catch (Exception e) {
-            log.error("API 사용량 통계 캐시 저장 중 오류 발생: {}", apiId, e);
-            return ApiResponse.<String>builder()
-                    .success(false)
-                    .message("API 사용량 통계 캐시 저장 중 오류가 발생했습니다: " + e.getMessage())
-                    .data("API ID: " + apiId + " - 오류 발생")
-                    .build();
-        }
+        
+        long readTime = System.currentTimeMillis() - readStartTime;
+        long totalTime = System.currentTimeMillis() - startTime;
+        
+        Map<String, Object> result = new HashMap<>();
+        result.put("totalCount", count);
+        result.put("writeSuccessCount", successCount);
+        result.put("readHitCount", hitCount);
+        result.put("writeTimeMs", writeTime);
+        result.put("readTimeMs", readTime);
+        result.put("totalTimeMs", totalTime);
+        result.put("writeAvgMs", (double) writeTime / count);
+        result.put("readAvgMs", (double) readTime / count);
+        
+        log.info("성능 테스트 완료: {} 저장, {} 조회, 총 {}ms", successCount, hitCount, totalTime);
+        
+        return ApiResponse.success(result, "성능 테스트 완료");
     }
     
     /**
-     * 캐시에서 API 사용량 통계를 조회합니다.
-     * 
-     * @param apiId API 식별자
-     * @return API 응답
+     * 모든 테스트 캐시 삭제
      */
-    @GetMapping("/get-api-usage-stats/{apiId}")
-    @RateLimit(value = 20, timeUnit = TimeUnit.MINUTES, keyType = RateLimit.KeyType.IP_ADDRESS)
-    public ApiResponse<Object> getApiUsageStats(@PathVariable String apiId) {
-        try {
-            Map<String, Object> usageStats = redisCacheService.getApiUsageStats(apiId);
-            
-            if (usageStats != null) {
-                log.info("API 사용량 통계 캐시 조회 성공: {}", apiId);
-                return ApiResponse.builder()
-                        .success(true)
-                        .message("API 사용량 통계를 캐시에서 조회했습니다")
-                        .data(usageStats)
-                        .build();
-            } else {
-                log.info("API 사용량 통계 캐시 미스: {}", apiId);
-                return ApiResponse.builder()
-                        .success(false)
-                        .message("캐시에서 API 사용량 통계를 찾을 수 없습니다")
-                        .data("API ID: " + apiId + " - 캐시 미스")
-                        .build();
-            }
-            
-        } catch (Exception e) {
-            log.error("API 사용량 통계 캐시 조회 중 오류 발생: {}", apiId, e);
-            return ApiResponse.builder()
-                    .success(false)
-                    .message("API 사용량 통계 캐시 조회 중 오류가 발생했습니다: " + e.getMessage())
-                    .data("API ID: " + apiId + " - 오류 발생")
-                    .build();
-        }
-    }
-    
-    // ==================== 캐시 관리 및 모니터링 테스트 ====================
-    
-    /**
-     * 특정 API의 캐시를 무효화합니다.
-     * 
-     * @param apiId API 식별자
-     * @return API 응답
-     */
-    @DeleteMapping("/invalidate-api-cache/{apiId}")
-    @RateLimit(value = 5, timeUnit = TimeUnit.MINUTES, keyType = RateLimit.KeyType.IP_ADDRESS)
-    public ApiResponse<String> invalidateApiCache(@PathVariable String apiId) {
-        try {
-            boolean success = redisCacheService.invalidateApiCache(apiId);
-            
-            if (success) {
-                log.info("API 캐시 무효화 성공: {}", apiId);
-                return ApiResponse.<String>builder()
-                        .success(true)
-                        .message("API 캐시가 성공적으로 무효화되었습니다")
-                        .data("API ID: " + apiId + " - 캐시 무효화 완료")
-                        .build();
-            } else {
-                log.error("API 캐시 무효화 실패: {}", apiId);
-                return ApiResponse.<String>builder()
-                        .success(false)
-                        .message("API 캐시 무효화에 실패했습니다")
-                        .data("API ID: " + apiId + " - 캐시 무효화 실패")
-                        .build();
-            }
-            
-        } catch (Exception e) {
-            log.error("API 캐시 무효화 중 오류 발생: {}", apiId, e);
-            return ApiResponse.<String>builder()
-                    .success(false)
-                    .message("API 캐시 무효화 중 오류가 발생했습니다: " + e.getMessage())
-                    .data("API ID: " + apiId + " - 오류 발생")
-                    .build();
-        }
-    }
-    
-    /**
-     * 캐시 통계 정보를 조회합니다.
-     * 
-     * @return API 응답
-     */
-    @GetMapping("/cache-statistics")
-    @RateLimit(value = 30, timeUnit = TimeUnit.MINUTES, keyType = RateLimit.KeyType.IP_ADDRESS)
-    public ApiResponse<Object> getCacheStatistics() {
-        try {
-            Map<String, Object> stats = redisCacheService.getCacheStatistics();
-            
-            log.info("캐시 통계 조회 성공");
-            return ApiResponse.builder()
-                    .success(true)
-                    .message("캐시 통계 정보를 조회했습니다")
-                    .data(stats)
-                    .build();
-            
-        } catch (Exception e) {
-            log.error("캐시 통계 조회 중 오류 발생", e);
-            return ApiResponse.builder()
-                    .success(false)
-                    .message("캐시 통계 조회 중 오류가 발생했습니다: " + e.getMessage())
-                    .data("오류 발생")
-                    .build();
-        }
-    }
-    
-    /**
-     * 만료된 캐시를 정리합니다.
-     * 
-     * @return API 응답
-     */
-    @PostMapping("/cleanup-expired-cache")
-    @RateLimit(value = 10, timeUnit = TimeUnit.MINUTES, keyType = RateLimit.KeyType.IP_ADDRESS)
-    public ApiResponse<String> cleanupExpiredCache() {
-        try {
-            int cleanedCount = redisCacheService.cleanupExpiredCache();
-            
-            log.info("만료된 캐시 정리 완료: {}개", cleanedCount);
-            return ApiResponse.<String>builder()
-                    .success(true)
-                    .message("만료된 캐시 정리가 완료되었습니다")
-                    .data("정리된 캐시: " + cleanedCount + "개")
-                    .build();
-            
-        } catch (Exception e) {
-            log.error("만료된 캐시 정리 중 오류 발생", e);
-            return ApiResponse.<String>builder()
-                    .success(false)
-                    .message("만료된 캐시 정리 중 오류가 발생했습니다: " + e.getMessage())
-                    .data("오류 발생")
-                    .build();
-        }
-    }
-    
-    /**
-     * 캐시 TTL을 연장합니다.
-     * 
-     * @param apiId API 식별자
-     * @param additionalSeconds 추가할 초
-     * @return API 응답
-     */
-    @PostMapping("/extend-cache-ttl/{apiId}")
-    @RateLimit(value = 10, timeUnit = TimeUnit.MINUTES, keyType = RateLimit.KeyType.IP_ADDRESS)
-    public ApiResponse<String> extendCacheTTL(
-            @PathVariable String apiId,
-            @RequestParam(defaultValue = "3600") long additionalSeconds) {
-        try {
-            boolean success = redisCacheService.extendCacheTTL(apiId, additionalSeconds);
-            
-            if (success) {
-                log.info("캐시 TTL 연장 성공: {} (+{}초)", apiId, additionalSeconds);
-                return ApiResponse.<String>builder()
-                        .success(true)
-                        .message("캐시 TTL이 성공적으로 연장되었습니다")
-                        .data("API ID: " + apiId + " - TTL 연장 완료 (+" + additionalSeconds + "초)")
-                        .build();
-            } else {
-                log.error("캐시 TTL 연장 실패: {}", apiId);
-                return ApiResponse.<String>builder()
-                        .success(false)
-                        .message("캐시 TTL 연장에 실패했습니다")
-                        .data("API ID: " + apiId + " - TTL 연장 실패")
-                        .build();
-            }
-            
-        } catch (Exception e) {
-            log.error("캐시 TTL 연장 중 오류 발생: {}", apiId, e);
-            return ApiResponse.<String>builder()
-                    .success(false)
-                    .message("캐시 TTL 연장 중 오류가 발생했습니다: " + e.getMessage())
-                    .data("API ID: " + apiId + " - 오류 발생")
-                    .build();
-        }
+    @DeleteMapping("/cleanup")
+    public ApiResponse<Map<String, Object>> cleanup() {
+        log.info("테스트 캐시 정리 시작");
+        
+        // 테스트 관련 캐시 삭제
+        int testCacheCount = redisCacheService.invalidateCacheByPattern("api-key:test:*");
+        int perfCacheCount = redisCacheService.invalidateCacheByPattern("api-key:perf-test:*");
+        
+        Map<String, Object> result = new HashMap<>();
+        result.put("testCacheDeleted", testCacheCount);
+        result.put("perfCacheDeleted", perfCacheCount);
+        result.put("totalDeleted", testCacheCount + perfCacheCount);
+        
+        log.info("테스트 캐시 정리 완료: test={}, perf={}", testCacheCount, perfCacheCount);
+        
+        return ApiResponse.success(result, "테스트 캐시 정리 완료");
     }
 }

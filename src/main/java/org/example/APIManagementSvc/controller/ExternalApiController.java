@@ -31,9 +31,15 @@ import java.util.stream.Collectors;
  * 
  * Rate Limiting 정책:
  * - API 등록/수정/삭제/복사: 1시간에 최대 50회 (관리자 작업)
- * - API 조회/검색: 1시간에 최대 1000회 (일반 사용자)
+ * - API 조회/탐색: 1시간에 최대 1000회 (일반 사용자)
  * - API 통계: 1시간에 최대 500회 (관리자/분석가)
  * - API 유효성 검증: 1시간에 최대 200회 (개발자 도구)
+ * 
+ * API 탐색 구조:
+ * - 전체 목록 조회: 페이징을 지원하는 모든 API 목록
+ * - 도메인별 조회: 업무 영역별 체계적 탐색 (금융/날씨/뉴스/교통 등)
+ * - 키워드별 조회: 세부 기능별 세밀한 분류 (주가/환율/날씨예보/지하철정보 등)
+ * - 상세 조회: 특정 API의 완전한 정보와 파라미터
  */
 @Slf4j
 @RestController
@@ -218,37 +224,6 @@ public class ExternalApiController {
     }
 
     /**
-     * API 검색
-     * Rate Limit: 1시간에 최대 1000회 (일반 사용자)
-     * GET /api/v1/external-apis/search
-     */
-    @GetMapping("/search")
-    @RateLimit(value = 1000, timeUnit = TimeUnit.HOURS, keyType = RateLimit.KeyType.IP_ADDRESS)
-    public ResponseEntity<ApiResponse<List<ExternalApiResponse>>> searchApis(
-            @RequestParam String q) {
-        
-        log.info("Searching APIs with query: {}", q);
-        
-        try {
-            // API 검색
-            List<ExternalApi> apis = externalApiService.searchApis(q);
-            
-            // Entity를 Response DTO로 변환
-            List<ExternalApiResponse> responses = apis.stream()
-                    .map(this::convertToResponse)
-                    .collect(Collectors.toList());
-            
-            return ResponseEntity.ok(ApiResponse.success(responses, 
-                    String.format("검색 결과 %d개의 API를 찾았습니다.", responses.size())));
-                    
-        } catch (Exception e) {
-            log.error("Failed to search APIs: {}", e.getMessage(), e);
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                    .body(ApiResponse.error("API 검색에 실패했습니다: " + e.getMessage()));
-        }
-    }
-
-    /**
      * 도메인별 API 조회
      * Rate Limit: 1시간에 최대 1000회 (일반 사용자)
      * GET /api/v1/external-apis/domain/{domain}
@@ -301,7 +276,7 @@ public class ExternalApiController {
                     .collect(Collectors.toList());
             
             return ResponseEntity.ok(ApiResponse.success(responses, 
-                    String.format("%s 키워드에서 %d개의 API를 찾았습니다.", keyword, responses.size())));
+                    String.format("%s 키워드에서 %d개의 API를 찾았습니다.", keyword.getDisplayName(), responses.size())));
                     
         } catch (Exception e) {
             log.error("Failed to get APIs by keyword: {}", e.getMessage(), e);

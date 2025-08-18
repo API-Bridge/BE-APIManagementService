@@ -17,6 +17,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.UUID;
+import java.util.ArrayList;
 
 /**
  * API 메타데이터 통합 관리 서비스
@@ -279,6 +280,75 @@ public class ApiManagementService {
         
         ApiKeyword apiKeyword = ApiKeyword.valueOf(keyword.toUpperCase());
         List<ExternalApi> apis = externalApiService.getApisByKeyword(apiKeyword);
+        
+        return apis.stream()
+                .map(api -> {
+                    List<ApiParameter> parameters = apiParameterService.getParametersByApiId(api.getApiId());
+                    return ApiWithParameters.builder()
+                            .api(api)
+                            .parameters(parameters)
+                            .build();
+                })
+                .toList();
+    }
+
+    /**
+     * 도메인과 키워드 조합으로 API와 파라미터 조회
+     */
+    public List<ApiWithParameters> getApisWithParametersByDomainAndKeyword(String domain, String keyword) {
+        log.debug("Getting APIs with parameters by domain: {} and keyword: {}", domain, keyword);
+        
+        ApiDomain apiDomain = ApiDomain.valueOf(domain.toUpperCase());
+        ApiKeyword apiKeyword = ApiKeyword.valueOf(keyword.toUpperCase());
+        
+        // 도메인과 키워드 모두 일치하는 API 조회
+        List<ExternalApi> apis = externalApiService.getApisByDomainAndKeyword(apiDomain, apiKeyword);
+        
+        return apis.stream()
+                .map(api -> {
+                    List<ApiParameter> parameters = apiParameterService.getParametersByApiId(api.getApiId());
+                    return ApiWithParameters.builder()
+                            .api(api)
+                            .parameters(parameters)
+                            .build();
+                })
+                .toList();
+    }
+
+    /**
+     * 복합 검색: 도메인, 키워드, 검색어를 조합하여 API 검색
+     */
+    public List<ApiWithParameters> searchApisWithParameters(String domain, String keyword, String searchTerm) {
+        log.debug("Searching APIs with domain: {}, keyword: {}, searchTerm: {}", domain, keyword, searchTerm);
+        
+        List<ExternalApi> apis = new ArrayList<>();
+        
+        if (domain != null && keyword != null) {
+            // 도메인 + 키워드 조합 검색
+            apis = externalApiService.getApisByDomainAndKeyword(
+                ApiDomain.valueOf(domain.toUpperCase()), 
+                ApiKeyword.valueOf(keyword.toUpperCase())
+            );
+        } else if (domain != null) {
+            // 도메인만으로 검색
+            apis = externalApiService.getApisByDomain(ApiDomain.valueOf(domain.toUpperCase()));
+        } else if (keyword != null) {
+            // 키워드만으로 검색
+            apis = externalApiService.getApisByKeyword(ApiKeyword.valueOf(keyword.toUpperCase()));
+        } else {
+            // 검색어만으로 검색 (전체 API에서 검색)
+            apis = externalApiService.searchApis(searchTerm);
+        }
+        
+        // 검색어가 있는 경우 추가 필터링
+        if (searchTerm != null && !searchTerm.trim().isEmpty()) {
+            apis = apis.stream()
+                    .filter(api -> 
+                        api.getApiName().toLowerCase().contains(searchTerm.toLowerCase()) ||
+                        api.getApiDescription().toLowerCase().contains(searchTerm.toLowerCase())
+                    )
+                    .toList();
+        }
         
         return apis.stream()
                 .map(api -> {
