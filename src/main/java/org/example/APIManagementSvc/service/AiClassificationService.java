@@ -35,16 +35,17 @@ public class AiClassificationService {
     private final RestTemplate geminiRestTemplate;
 
     /**
-     * API 자동 분류 실행
+     * 🔥 API 자동 분류 실행
+     * ExternalApiRegistrationService에서 사용
      */
     @Transactional
-    public AiClassification classifyApi(String apiId, String apiName, String apiDescription, String apiUrl) {
+    public AiClassification classifyApi(String apiId, String apiName, String apiDescription, String apiUrl, String classificationPrompt) {
         log.info("AI 분류 시작: API ID={}, Name={}", apiId, apiName);
 
         try {
             // Gemini AI를 사용한 분류 로직
-            ApiDomain classifiedDomain = classifyDomainWithAI(apiName, apiDescription, apiUrl);
-            ApiKeyword classifiedKeyword = classifyKeywordWithAI(apiName, apiDescription, apiUrl, classifiedDomain);
+            ApiDomain classifiedDomain = classifyDomainWithAI(apiName, apiDescription, apiUrl, classificationPrompt);
+            ApiKeyword classifiedKeyword = classifyKeywordWithAI(apiName, apiDescription, apiUrl, classifiedDomain, classificationPrompt);
             
             // 분류 결과 저장
             AiClassification classification = new AiClassification();
@@ -53,9 +54,6 @@ public class AiClassificationService {
             classification.setClassifiedDomain(classifiedDomain);
             classification.setClassifiedKeyword(classifiedKeyword);
             classification.setClassifiedAt(LocalDateTime.now());
-            classification.setAnalyzedText(String.format("API Name: %s, Description: %s, URL: %s", apiName, apiDescription, apiUrl));
-            classification.setModelVersion("gemini-1.5-flash");
-            classification.setClassificationLog("AI 자동 분류 완료");
             classification.setDeleted(false);
 
             AiClassification saved = aiClassificationRepository.save(classification);
@@ -72,39 +70,14 @@ public class AiClassificationService {
     /**
      * Gemini AI를 사용한 도메인 분류
      */
-    private ApiDomain classifyDomainWithAI(String apiName, String apiDescription, String apiUrl) {
+    private ApiDomain classifyDomainWithAI(String apiName, String apiDescription, String apiUrl, String classificationPrompt) {
         if (!geminiConfig.isApiKeyConfigured()) {
             log.warn("Gemini API 키가 설정되지 않았습니다. 키워드 기반 분류를 사용합니다.");
             return classifyDomainWithKeywords(apiName, apiDescription, apiUrl);
         }
 
         try {
-            String prompt = String.format("""
-                다음 API 정보를 분석하여 가장 적절한 도메인을 분류해주세요.
-                
-                API 이름: %s
-                API 설명: %s
-                API URL: %s
-                
-                다음 도메인 중에서 하나를 선택해주세요:
-                - COMMERCE (상거래, 쇼핑, 결제)
-                - EDUCATION (교육, 학습, 강의)
-                - ENTERTAINMENT (엔터테인먼트, 게임, 미디어)
-                - FINANCE (금융, 주식, 환율, 은행)
-                - GOVERNMENT (정부, 공공, 행정)
-                - HEALTHCARE (의료, 건강, 병원)
-                - LIFESTYLE (라이프스타일, 패션, 뷰티)
-                - NEWS (뉴스, 소셜, 트렌드)
-                - OTHERS (기타)
-                - REALESTATE (부동산, 매매, 임대)
-                - SPORTS (스포츠, 운동, 경기)
-                - TECHNOLOGY (기술, 개발, IT)
-                - TRANSPORTATION (교통, 이동, 지도)
-                - TRAVEL (여행, 항공, 숙박)
-                - WEATHER (날씨, 기상, 환경)
-                
-                답변은 도메인 이름만 출력해주세요. (예: FINANCE)
-                """, apiName, apiDescription, apiUrl);
+            String prompt = classificationPrompt; // Use the provided prompt
 
             String result = callGeminiAI(prompt);
             log.info("AI 도메인 분류 결과: {}", result);
@@ -125,91 +98,14 @@ public class AiClassificationService {
     /**
      * Gemini AI를 사용한 키워드 분류
      */
-    private ApiKeyword classifyKeywordWithAI(String apiName, String apiDescription, String apiUrl, ApiDomain domain) {
+    private ApiKeyword classifyKeywordWithAI(String apiName, String apiDescription, String apiUrl, ApiDomain domain, String classificationPrompt) {
         if (!geminiConfig.isApiKeyConfigured()) {
             log.warn("Gemini API 키가 설정되지 않았습니다. 기본 키워드를 사용합니다.");
             return getDefaultKeywordForDomain(domain);
         }
 
         try {
-            String prompt = String.format("""
-                다음 API 정보와 도메인을 분석하여 가장 적절한 키워드를 분류해주세요.
-                
-                API 이름: %s
-                API 설명: %s
-                API URL: %s
-                도메인: %s
-                
-                다음 키워드 중에서 하나를 선택해주세요:
-                - AIR_QUALITY (대기질, 미세먼지)
-                - API_DOCUMENT (API 문서, 개발자 도구)
-                - BASEBALL_RESULT (야구 결과, 경기)
-                - BASKETBALL_RESULT (농구 결과, 경기)
-                - BEAUTY_TIP (뷰티 팁, 화장품)
-                - BREAKING_NEWS (속보, 긴급 뉴스)
-                - BUS_INFO (버스 정보, 노선)
-                - CELEBRITY_NEWS (연예인 뉴스, 소식)
-                - COUPON_DISCOUNT (쿠폰, 할인)
-                - COURSE_INFO (강의 정보, 과정)
-                - CRYPTOCURRENCY (암호화폐, 가상화폐)
-                - CURRENT_WEATHER (현재 날씨, 기온)
-                - DEVELOPER_TOOL (개발자 도구, 소프트웨어)
-                - ECONOMIC_INDICATOR (경제 지표, 통계)
-                - ECONOMY_NEWS (경제 뉴스, 시장)
-                - EXAM_SCHEDULE (시험 일정, 일정)
-                - EXCHANGE_RATE (환율, 외환)
-                - FASHION_TREND (패션 트렌드, 유행)
-                - FITNESS_DATA (피트니스 데이터, 운동)
-                - FLIGHT_INFO (항공 정보, 비행)
-                - GAME_INFO (게임 정보, 게임)
-                - HEALTH_TIP (건강 팁, 건강)
-                - HOSPITAL_INFO (병원 정보, 의료)
-                - HOTEL_INFO (호텔 정보, 숙박)
-                - HOUSE_PRICE (집값, 부동산 가격)
-                - INTEREST_RATE (금리, 이자율)
-                - INTERIOR_TIP (인테리어 팁, 인테리어)
-                - LEGAL_INFO (법률 정보, 법적 조언)
-                - MEDICINE_INFO (의약품 정보, 약물)
-                - MOVIE_INFO (영화 정보, 영화)
-                - MUSIC_CHART (음악 차트, 음악)
-                - PARKING_INFO (주차 정보, 주차)
-                - PLAYER_STATS (선수 통계, 선수)
-                - POLICY_INFO (정책 정보, 정책)
-                - POLITICS (정치, 정치 뉴스)
-                - PRECIPITATION (강수량, 비, 눈)
-                - PRICE_COMPARISON (가격 비교, 가격)
-                - PRODUCT_INFO (상품 정보, 제품)
-                - PRODUCT_REVIEW (상품 리뷰, 제품 리뷰)
-                - PUBLIC_DATA (공공 데이터, 공개 데이터)
-                - PUBLIC_SERVICE (공공 서비스, 공무)
-                - REAL_ESTATE_TREND (부동산 트렌드, 시장)
-                - RECIPE (레시피, 요리법)
-                - RENT_INFO (임대 정보, 임대)
-                - RESTAURANT_INFO (식당 정보, 음식점)
-                - SCHOLARSHIP (장학금, 장학)
-                - SCHOOL_INFO (학교 정보, 교육기관)
-                - SHOPPING_RANK (쇼핑 순위, 인기)
-                - SOCCER_RESULT (축구 결과, 경기)
-                - SOCIAL_TREND (소셜 트렌드, 트렌드)
-                - SPORTS_NEWS (스포츠 뉴스, 스포츠)
-                - SPORTS_SCHEDULE (스포츠 일정, 경기 일정)
-                - STATISTICS (통계, 데이터)
-                - STOCK_INDEX (주가 지수, 지수)
-                - STOCK_PRICE (주가, 주식 가격)
-                - SUBWAY_INFO (지하철 정보, 지하철)
-                - TAXI_FARE (택시 요금, 택시)
-                - TEAM_RANKING (팀 순위, 순위)
-                - TECHNOLOGY_NEWS (기술 뉴스, IT 뉴스)
-                - TECH_TREND (기술 트렌드, IT 트렌드)
-                - TEMPERATURE (온도, 기온)
-                - TOURIST_SPOT (관광지, 여행지)
-                - TRAFFIC_CONDITION (교통 상황, 교통)
-                - TV_SCHEDULE (TV 일정, 방송)
-                - UV_INDEX (자외선 지수, UV)
-                - WEATHER_FORECAST (날씨 예보, 예보)
-                
-                답변은 키워드 이름만 출력해주세요. (예: STOCK_PRICE)
-                """, apiName, apiDescription, apiUrl, domain);
+            String prompt = classificationPrompt; // Use the provided prompt
 
             String result = callGeminiAI(prompt);
             log.info("AI 키워드 분류 결과: {}", result);
@@ -412,9 +308,9 @@ public class AiClassificationService {
      */
     @Transactional(readOnly = true)
     public List<AiClassification> searchClassifications(String searchTerm) {
-        List<AiClassification> results = aiClassificationRepository.findByAnalyzedTextContaining(searchTerm);
-        results.addAll(aiClassificationRepository.findByClassificationLogContaining(searchTerm));
-        return results;
+        // 간단한 키워드 기반 검색으로 대체
+        return aiClassificationRepository.findByClassifiedDomainAndClassifiedKeyword(
+            ApiDomain.OTHERS, ApiKeyword.API_DOCUMENT);
     }
 
     /**

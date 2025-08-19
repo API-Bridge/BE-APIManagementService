@@ -4,8 +4,12 @@ import jakarta.persistence.*;
 import lombok.Getter;
 import lombok.Setter;
 import com.fasterxml.jackson.annotation.JsonFormat;
+import com.fasterxml.jackson.core.type.TypeReference;
+import com.fasterxml.jackson.databind.ObjectMapper;
 
 import java.time.LocalDateTime;
+import java.util.HashMap;
+import java.util.Map;
 
 /**
  * API 파라미터 정보 엔티티
@@ -52,6 +56,17 @@ public class ApiParameter {
     @Column(name = "default_value", columnDefinition = "TEXT")
     private String defaultValue;
 
+    /** 파라미터에 대한 설명 */
+    @Column(name = "param_description", columnDefinition = "TEXT")
+    private String paramDescription;
+
+    /** 
+     * 🔥 동적 추가 필드를 JSON으로 저장
+     * API마다 다른 파라미터 구조를 유연하게 저장 가능
+     */
+    @Column(name = "additional_fields", columnDefinition = "JSON")
+    private String additionalFields;
+
     /** 생성 일시 */
     @Column(name = "created_at", nullable = false)
     @JsonFormat(pattern = "yyyy-MM-dd HH:mm:ss")
@@ -65,6 +80,64 @@ public class ApiParameter {
     /** 삭제 여부 (Soft Delete) */
     @Column(name = "deleted", nullable = false)
     private Boolean deleted = false;
+
+    // === JSON 필드 처리 메서드 ===
+
+    /**
+     * JSON을 Map으로 변환하여 동적 추가 필드를 조회합니다.
+     * @return Map<String, Object> 형태의 추가 필드 정보
+     */
+    @Transient
+    public Map<String, Object> getAdditionalFieldsMap() {
+        if (additionalFields == null || additionalFields.trim().isEmpty()) {
+            return new HashMap<>();
+        }
+        try {
+            ObjectMapper mapper = new ObjectMapper();
+            return mapper.readValue(additionalFields, new TypeReference<Map<String, Object>>() {});
+        } catch (Exception e) {
+            return new HashMap<>();
+        }
+    }
+
+    /**
+     * Map을 JSON 문자열로 변환하여 additionalFields에 저장합니다.
+     * @param fields 저장할 추가 필드 Map
+     */
+    public void setAdditionalFieldsMap(Map<String, Object> fields) {
+        if (fields == null || fields.isEmpty()) {
+            this.additionalFields = null;
+            return;
+        }
+        try {
+            ObjectMapper mapper = new ObjectMapper();
+            this.additionalFields = mapper.writeValueAsString(fields);
+        } catch (Exception e) {
+            this.additionalFields = "{}";
+        }
+    }
+
+    /**
+     * 특정 추가 필드 값을 조회합니다.
+     * @param key 필드 키
+     * @return 필드 값 또는 null
+     */
+    @Transient
+    public Object getAdditionalField(String key) {
+        return getAdditionalFieldsMap().get(key);
+    }
+
+    /**
+     * 특정 추가 필드를 설정합니다.
+     * @param key 필드 키
+     * @param value 필드 값
+     */
+    @Transient
+    public void setAdditionalField(String key, Object value) {
+        Map<String, Object> fields = getAdditionalFieldsMap();
+        fields.put(key, value);
+        setAdditionalFieldsMap(fields);
+    }
 
     /**
      * 엔티티 저장 전 호출

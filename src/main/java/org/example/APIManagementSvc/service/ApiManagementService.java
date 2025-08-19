@@ -37,6 +37,7 @@ public class ApiManagementService {
 
     /**
      * API와 파라미터를 함께 등록
+     * API와 파라미터를 함께 다루는 비즈니스 워크플로우 담당
      */
     @Transactional
     public ExternalApi registerApiWithParameters(ExternalApi api, List<ApiParameter> parameters) {
@@ -45,7 +46,10 @@ public class ApiManagementService {
         try {
             // 1. AI 자동 분류 수행
             if (api.getApiDomain() == null || api.getApiKeyword() == null) {
-                var classification = aiClassificationService.classifyApi(api.getApiId(), api.getApiName(), api.getApiDescription(), api.getApiUrl());
+                // AI 분류를 위한 프롬프트 생성
+                String classificationPrompt = buildClassificationPrompt(api, parameters);
+
+                var classification = aiClassificationService.classifyApi(api.getApiId(), api.getApiName(), api.getApiDescription(), api.getApiUrl(), classificationPrompt);
                 if (api.getApiDomain() == null) {
                     api.setApiDomain(classification.getClassifiedDomain());
                 }
@@ -72,6 +76,37 @@ public class ApiManagementService {
             log.error("Failed to register API with parameters: {}", e.getMessage(), e);
             throw new RuntimeException("API registration failed: " + e.getMessage(), e);
         }
+    }
+
+    /**
+     * 🔥 AI 분류를 위한 프롬프트 생성
+     */
+    private String buildClassificationPrompt(ExternalApi api, List<ApiParameter> parameters) {
+        StringBuilder prompt = new StringBuilder();
+        prompt.append("다음 API 정보를 분석하여 도메인과 키워드를 분류해주세요:\n\n");
+        prompt.append("API 이름: ").append(api.getApiName()).append("\n");
+        prompt.append("API 설명: ").append(api.getApiDescription()).append("\n");
+        prompt.append("API URL: ").append(api.getApiUrl()).append("\n");
+        prompt.append("HTTP 메소드: ").append(api.getHttpMethod()).append("\n");
+        prompt.append("파라미터 개수: ").append(parameters != null ? parameters.size() : 0).append("\n");
+        
+        // 파라미터 정보 추가
+        if (parameters != null && !parameters.isEmpty()) {
+            prompt.append("주요 파라미터:\n");
+            parameters.stream()
+                .limit(5) // 최대 5개만 표시
+                .forEach(param -> {
+                    prompt.append("- ").append(param.getParamName())
+                        .append(" (").append(param.getParamType()).append(")");
+                    if (param.getParamDescription() != null && !param.getParamDescription().isEmpty()) {
+                        prompt.append(": ").append(param.getParamDescription());
+                    }
+                    prompt.append("\n");
+                });
+        }
+        
+        prompt.append("\n위 정보를 바탕으로 가장 적절한 도메인과 키워드를 선택해주세요.");
+        return prompt.toString();
     }
 
     /**

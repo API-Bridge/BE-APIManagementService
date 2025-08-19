@@ -48,22 +48,6 @@ public class AiClassification {
     @JsonFormat(pattern = "yyyy-MM-dd HH:mm:ss")
     private LocalDateTime classifiedAt;
 
-    /** 분류 로그 */
-    @Column(name = "classification_log", columnDefinition = "TEXT")
-    private String classificationLog;
-
-    /** 분석된 텍스트 */
-    @Column(name = "analyzed_text", columnDefinition = "TEXT")
-    private String analyzedText;
-
-    /** 모델 버전 */
-    @Column(name = "model_version", length = 50)
-    private String modelVersion;
-
-    /** 메타데이터 */
-    @Column(name = "metadata", columnDefinition = "TEXT")
-    private String metadata;
-
     /** Soft Delete를 위한 삭제 플래그 */
     @Column(name = "deleted", nullable = false)
     private Boolean deleted = false;
@@ -73,10 +57,9 @@ public class AiClassification {
     /**
      * 분류 완료 처리
      */
-    public void completeClassification(ApiDomain domain, ApiKeyword keyword, String log) {
+    public void completeClassification(ApiDomain domain, ApiKeyword keyword) {
         this.classifiedDomain = domain;
         this.classifiedKeyword = keyword;
-        this.classificationLog = log;
         this.classifiedAt = LocalDateTime.now();
     }
 

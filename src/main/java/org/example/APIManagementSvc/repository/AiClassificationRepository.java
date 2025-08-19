@@ -31,11 +31,6 @@ public interface AiClassificationRepository extends JpaRepository<AiClassificati
      */
     List<AiClassification> findByApiId(String apiId);
 
-    /**
-     * 모델 버전으로 조회
-     */
-    List<AiClassification> findByModelVersion(String modelVersion);
-
     // === 분류 결과 기반 조회 ===
 
     /**
@@ -92,26 +87,6 @@ public interface AiClassificationRepository extends JpaRepository<AiClassificati
      */
     @Query("SELECT a.classifiedKeyword, COUNT(a) FROM AiClassification a WHERE a.deleted = false GROUP BY a.classifiedKeyword")
     List<Object[]> getClassificationStatsByKeyword();
-
-    /**
-     * 모델 버전별 분류 통계
-     */
-    @Query("SELECT a.modelVersion, COUNT(a) FROM AiClassification a WHERE a.deleted = false GROUP BY a.modelVersion")
-    List<Object[]> getClassificationStatsByModelVersion();
-
-    // === 검색 기능 ===
-
-    /**
-     * 분석된 텍스트에 검색어가 포함된 분류 결과 조회
-     */
-    @Query("SELECT a FROM AiClassification a WHERE a.analyzedText LIKE %:searchTerm% AND a.deleted = false")
-    List<AiClassification> findByAnalyzedTextContaining(@Param("searchTerm") String searchTerm);
-
-    /**
-     * 분류 로그에 검색어가 포함된 분류 결과 조회
-     */
-    @Query("SELECT a FROM AiClassification a WHERE a.classificationLog LIKE %:searchTerm% AND a.deleted = false")
-    List<AiClassification> findByClassificationLogContaining(@Param("searchTerm") String searchTerm);
 
     // === 존재 여부 확인 ===
 

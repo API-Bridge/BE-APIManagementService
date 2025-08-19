@@ -19,6 +19,7 @@ import java.util.UUID;
 /**
  * API 파라미터 관리 서비스
  * 외부 서비스에서 생성된 API 파라미터를 받아서 관리하는 서비스
+ * 파라미터의 개별 CRUD 및 도메인 로직
  */
 @Slf4j
 @Service

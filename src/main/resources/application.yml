@@ -87,6 +87,21 @@ auth0:
   issuerUri: ${AUTH0_ISSUER_URI:https://dev-your-domain.auth0.com/}
   audience: ${AUTH0_AUDIENCE:https://api.dev.yourservice.com}
 
+# 🔥 ELK 스택 설정 (로그 수집 서비스용)
+elk:
+  enabled: ${ELK_ENABLED:false}
+  logstash:
+    host: ${ELK_LOGSTASH_HOST:localhost}
+    port: ${ELK_LOGSTASH_PORT:5000}
+    endpoint: ${ELK_LOGSTASH_ENDPOINT:/}
+  elasticsearch:
+    host: ${ELK_ELASTICSEARCH_HOST:localhost}
+    port: ${ELK_ELASTICSEARCH_PORT:9200}
+    index-prefix: ${ELK_INDEX_PREFIX:apimanagement-logs}
+  kibana:
+    host: ${ELK_KIBANA_HOST:localhost}
+    port: ${ELK_KIBANA_PORT:5601}
+
 # Gemini AI 설정
 gemini:
   api:

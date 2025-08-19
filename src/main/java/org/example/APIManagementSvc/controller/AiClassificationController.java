@@ -38,11 +38,14 @@ public class AiClassificationController {
         log.info("AI 분류 요청: API ID={}, Name={}", request.getApiId(), request.getApiName());
         
         try {
+            String classificationPrompt = buildPromptFromRequest(request);
+
             AiClassification classification = aiClassificationService.classifyApi(
                 request.getApiId(),
                 request.getApiName(),
                 request.getApiDescription(),
-                request.getApiUrl()
+                request.getApiUrl(),
+                classificationPrompt
             );
             
             AiClassificationResponse response = convertToResponse(classification);
@@ -54,6 +57,20 @@ public class AiClassificationController {
             return ResponseEntity.badRequest()
                 .body(ApiResponse.error("AI 분류에 실패했습니다: " + e.getMessage()));
         }
+    }
+
+    private String buildPromptFromRequest(AiClassificationRequest request) {
+        StringBuilder prompt = new StringBuilder();
+        prompt.append("다음 API 정보를 분석하여 도메인과 키워드를 분류해주세요:\n\n");
+        prompt.append("API 이름: ").append(request.getApiName()).append("\n");
+        prompt.append("API 설명: ").append(request.getApiDescription()).append("\n");
+        prompt.append("API URL: ").append(request.getApiUrl()).append("\n");
+        
+        // Note: AiClassificationRequest does not contain HTTP method or parameter info, so we omit it here.
+        // If HTTP method or parameter info is needed for classification in this endpoint, it should be added to AiClassificationRequest.
+
+        prompt.append("\n위 정보를 바탕으로 가장 적절한 도메인과 키워드를 선택해주세요.");
+        return prompt.toString();
     }
 
     /**
@@ -193,10 +210,6 @@ public class AiClassificationController {
         response.setClassifiedDomain(classification.getClassifiedDomain());
         response.setClassifiedKeyword(classification.getClassifiedKeyword());
         response.setClassifiedAt(classification.getClassifiedAt());
-        response.setClassificationLog(classification.getClassificationLog());
-        response.setAnalyzedText(classification.getAnalyzedText());
-        response.setModelVersion(classification.getModelVersion());
-        response.setMetadata(classification.getMetadata());
         return response;
     }
 }

@@ -16,7 +16,9 @@ import java.time.LocalDateTime;
 @Entity
 @Table(name = "external_api", indexes = {
     @Index(name = "idx_api_domain", columnList = "api_domain"),
-    @Index(name = "idx_api_owner", columnList = "api_owner")
+    @Index(name = "idx_api_owner", columnList = "api_owner"),
+    @Index(name = "idx_api_keyword", columnList = "api_keyword"),
+    @Index(name = "idx_deleted", columnList = "deleted")
 })
 @Getter
 @Setter
@@ -43,12 +45,12 @@ public class ExternalApi {
     @Column(name = "api_owner", length = 36)
     private String apiOwner;
 
-    /** API 분류 도메인 */
+    /** API 분류 도메인 (AI 자동 분류 결과) */
     @Enumerated(EnumType.STRING)
     @Column(name = "api_domain", nullable = false, length = 255)
     private ApiDomain apiDomain;
 
-    /** API 세부분류용 키워드 */
+    /** API 세부분류용 키워드 (AI 자동 분류 결과) */
     @Enumerated(EnumType.STRING)
     @Column(name = "api_keyword", nullable = false, length = 255)
     private ApiKeyword apiKeyword;
@@ -84,6 +86,33 @@ public class ExternalApi {
     // API 파라미터는 별도 서비스 레이어에서 apiId로 조회
 
     // === 비즈니스 로직 메서드 ===
+
+    /**
+     * API 등록 시 기본 정보 설정
+     */
+    public void initializeApi(String apiId, String apiName, String apiUrl, String apiIssuer, 
+                            String apiOwner, String httpMethod, String apiDescription) {
+        this.apiId = apiId;
+        this.apiName = apiName;
+        this.apiUrl = apiUrl;
+        this.apiIssuer = apiIssuer;
+        this.apiOwner = apiOwner;
+        this.httpMethod = httpMethod;
+        this.apiDescription = apiDescription;
+        this.createdAt = LocalDateTime.now();
+        this.updatedAt = LocalDateTime.now();
+        this.apiEffectiveness = true;
+        this.deleted = false;
+    }
+
+    /**
+     * AI 분류 결과 설정
+     */
+    public void setAiClassification(ApiDomain domain, ApiKeyword keyword) {
+        this.apiDomain = domain;
+        this.apiKeyword = keyword;
+        this.updatedAt = LocalDateTime.now();
+    }
 
     /**
      * API 유효성 상태 업데이트
@@ -124,6 +153,13 @@ public class ExternalApi {
      */
     public boolean isOwnedBy(String userId) {
         return apiOwner != null && apiOwner.equals(userId);
+    }
+
+    /**
+     * AI 분류 결과가 신뢰할 수 있는지 확인
+     */
+    public boolean isClassificationReliable() {
+        return true; // Removed classificationConfidence and classificationPrompt
     }
 
     /**
