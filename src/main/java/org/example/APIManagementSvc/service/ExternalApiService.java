@@ -250,7 +250,6 @@ public class ExternalApiService {
         
         return externalApiRepository.save(existingApi);
     }
-
     /**
      * API 삭제 (소프트 삭제)
      */
@@ -285,7 +284,7 @@ public class ExternalApiService {
      * API 유효성 업데이트
      */
     @Transactional
-    public ExternalApi updateApiEffectiveness(String apiId, boolean effectiveness) {
+    public void updateApiEffectiveness(String apiId, boolean effectiveness) {
         log.info("Updating API effectiveness: {} to {}", apiId, effectiveness);
         
         ExternalApi api = externalApiRepository.findByApiId(apiId)
@@ -294,7 +293,7 @@ public class ExternalApiService {
 
         api.setApiEffectiveness(effectiveness);
         api.setUpdatedAt(LocalDateTime.now());
-        
-        return externalApiRepository.save(api);
+
+        externalApiRepository.save(api);
     }
 }
