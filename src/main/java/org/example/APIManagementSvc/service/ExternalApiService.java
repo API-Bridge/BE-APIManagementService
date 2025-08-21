@@ -79,6 +79,48 @@ public class ExternalApiService {
         if (api.getApiIssuer() == null || api.getApiIssuer().trim().isEmpty()) {
             throw new IllegalArgumentException("API issuer is required");
         }
+        
+        // API 키는 선택사항이지만, 설정된 경우 유효성 검증
+        if (api.getApiKey() != null) {
+            // ApiKey 엔티티가 설정되어 있는지 확인
+            throw new IllegalArgumentException("API key validation not implemented for ApiKey entity");
+        }
+    }
+
+    /**
+     * API 등록 (인증 정보 포함)
+     */
+    @Transactional
+    public ExternalApi registerApiWithAuth(ExternalApi api, String apiKey, String apiToken) {
+        log.info("Registering API with auth: {}", api.getApiName());
+        
+        // 입력값 검증
+        validateApiInput(api);
+        
+        // 중복 확인
+        if (externalApiRepository.existsByApiName(api.getApiName())) {
+            throw new IllegalArgumentException("API with name '" + api.getApiName() + "' already exists");
+        }
+        
+        // 기본값 설정
+        api.setApiEffectiveness(true);
+        api.setDeleted(false);
+        api.setCreatedAt(LocalDateTime.now());
+        api.setUpdatedAt(LocalDateTime.now());
+        
+        // 인증 정보 설정
+        if (apiKey != null && !apiKey.trim().isEmpty()) {
+            // API 키는 별도로 관리되므로 여기서는 설정하지 않음
+            log.info("API key provided but not set in ExternalApi entity");
+        }
+        
+        if (apiToken != null && !apiToken.trim().isEmpty()) {
+            // 토큰 만료 시간을 4시간 후로 설정
+            LocalDateTime tokenExpiresAt = LocalDateTime.now().plusHours(4);
+            api.setApiToken(apiToken.trim(), tokenExpiresAt);
+        }
+        
+        return externalApiRepository.save(api);
     }
 
     /**

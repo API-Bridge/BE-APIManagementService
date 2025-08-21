@@ -11,6 +11,11 @@ import org.example.APIManagementSvc.domain.enums.ApiKeyword;
 import org.example.APIManagementSvc.dto.externalapi.ExternalApiUpdateRequest;
 import org.example.APIManagementSvc.repository.ApiParameterRepository;
 import org.example.APIManagementSvc.repository.ExternalApiRepository;
+import org.example.APIManagementSvc.service.ApiHealthCheckService;
+import org.example.APIManagementSvc.service.ApiKeyService;
+import org.example.APIManagementSvc.service.ApiParameterService;
+import org.example.APIManagementSvc.service.ApiTokenRefreshService;
+import org.example.APIManagementSvc.service.ExternalApiService;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -18,6 +23,7 @@ import java.time.LocalDateTime;
 import java.util.List;
 import java.util.UUID;
 import java.util.ArrayList;
+import org.example.APIManagementSvc.domain.Entity.ApiKey;
 
 /**
  * API 메타데이터 통합 관리 서비스
@@ -34,10 +40,59 @@ public class ApiManagementService {
     private final ExternalApiRepository externalApiRepository;
     private final ApiParameterRepository apiParameterRepository;
     private final AiClassificationService aiClassificationService;
+    private final ApiHealthCheckService apiHealthCheckService;
+    private final ApiTokenRefreshService apiTokenRefreshService;
+    private final ApiKeyService apiKeyService;
+
+    /**
+     * API와 파라미터를 함께 등록 (인증 정보 포함)
+     */
+    @Transactional
+    public ExternalApi registerApiWithParametersAndAuth(ExternalApi api, List<ApiParameter> parameters, 
+                                                      String apiKey, String apiToken) {
+        log.info("Registering API with parameters and auth: {}", api.getApiName());
+        
+        try {
+            // 1. AI 자동 분류 수행
+            if (api.getApiDomain() == null || api.getApiKeyword() == null) {
+                var classification = aiClassificationService.classifyApi(api.getApiId(), api.getApiName(), api.getApiDescription(), api.getApiUrl(), null);
+                if (api.getApiDomain() == null) {
+                    api.setApiDomain(classification.getClassifiedDomain());
+                }
+                if (api.getApiKeyword() == null) {
+                    api.setApiKeyword(classification.getClassifiedKeyword());
+                }
+            }
+            
+            // 2. API 등록 (인증 정보 포함)
+            ExternalApi registeredApi = externalApiService.registerApiWithAuth(api, apiKey, apiToken);
+            
+            // 3. 파라미터 등록
+            if (parameters != null && !parameters.isEmpty()) {
+                for (ApiParameter parameter : parameters) {
+                    parameter.setApiId(registeredApi.getApiId());
+                    apiParameterService.saveParameter(parameter);
+                }
+            }
+            
+            // 4. 초기 헬스체크 수행
+            try {
+                apiHealthCheckService.checkApiHealth(registeredApi);
+            } catch (Exception e) {
+                log.warn("초기 헬스체크 실패: {} - {}", api.getApiName(), e.getMessage());
+            }
+            
+            log.info("Successfully registered API with {} parameters and auth", parameters != null ? parameters.size() : 0);
+            return registeredApi;
+            
+        } catch (Exception e) {
+            log.error("Failed to register API with parameters and auth: {}", e.getMessage(), e);
+            throw new RuntimeException("API registration failed: " + e.getMessage(), e);
+        }
+    }
 
     /**
      * API와 파라미터를 함께 등록
-     * API와 파라미터를 함께 다루는 비즈니스 워크플로우 담당
      */
     @Transactional
     public ExternalApi registerApiWithParameters(ExternalApi api, List<ApiParameter> parameters) {
@@ -46,10 +101,7 @@ public class ApiManagementService {
         try {
             // 1. AI 자동 분류 수행
             if (api.getApiDomain() == null || api.getApiKeyword() == null) {
-                // AI 분류를 위한 프롬프트 생성
-                String classificationPrompt = buildClassificationPrompt(api, parameters);
-
-                var classification = aiClassificationService.classifyApi(api.getApiId(), api.getApiName(), api.getApiDescription(), api.getApiUrl(), classificationPrompt);
+                var classification = aiClassificationService.classifyApi(api.getApiId(), api.getApiName(), api.getApiDescription(), api.getApiUrl(), null);
                 if (api.getApiDomain() == null) {
                     api.setApiDomain(classification.getClassifiedDomain());
                 }
@@ -394,6 +446,63 @@ public class ApiManagementService {
                             .build();
                 })
                 .toList();
+    }
+
+    /**
+     * API 키와 External API 연결
+     */
+    @Transactional
+    public ExternalApi linkApiKey(String apiId, String apiKeyId) {
+        log.info("API 키 연결: API={}, API Key={}", apiId, apiKeyId);
+        
+        try {
+            // API 존재 여부 확인
+            ExternalApi api = externalApiService.getApiById(apiId)
+                    .orElseThrow(() -> new IllegalArgumentException("API not found: " + apiId));
+            
+            // API 키 존재 여부 확인
+            ApiKey apiKey = apiKeyService.getApiKey(apiKeyId)
+                    .orElseThrow(() -> new IllegalArgumentException("API key not found: " + apiKeyId));
+            
+            // API 키가 활성 상태인지 확인
+            if (!apiKey.isActive()) {
+                throw new IllegalArgumentException("API key is not active: " + apiKeyId);
+            }
+            
+            // API와 API 키 연결
+            api.setApiKey(apiKey);
+            ExternalApi updatedApi = externalApiRepository.save(api);
+            
+            log.info("API 키 연결 완료: {} -> {}", apiId, apiKeyId);
+            return updatedApi;
+            
+        } catch (Exception e) {
+            log.error("API 키 연결 실패: {} - {}", apiId, e.getMessage(), e);
+            throw new RuntimeException("API 키 연결 실패: " + e.getMessage());
+        }
+    }
+
+    /**
+     * API 키 연결 해제
+     */
+    @Transactional
+    public ExternalApi unlinkApiKey(String apiId) {
+        log.info("API 키 연결 해제: API={}", apiId);
+        
+        try {
+            ExternalApi api = externalApiService.getApiById(apiId)
+                    .orElseThrow(() -> new IllegalArgumentException("API not found: " + apiId));
+            
+            api.setApiKey(null);
+            ExternalApi updatedApi = externalApiRepository.save(api);
+            
+            log.info("API 키 연결 해제 완료: {}", apiId);
+            return updatedApi;
+            
+        } catch (Exception e) {
+            log.error("API 키 연결 해제 실패: {} - {}", apiId, e.getMessage(), e);
+            throw new RuntimeException("API 키 연결 해제 실패: " + e.getMessage());
+        }
     }
 
     // Inner Classes for DTOs

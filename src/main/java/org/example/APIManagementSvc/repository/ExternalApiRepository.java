@@ -10,6 +10,7 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
 
@@ -93,6 +94,25 @@ public interface ExternalApiRepository extends JpaRepository<ExternalApi, String
      */
     @Query("SELECT e FROM ExternalApi e WHERE e.apiKeyword = :keyword AND e.apiEffectiveness = true AND e.deleted = false")
     List<ExternalApi> findValidApisByKeyword(@Param("keyword") ApiKeyword keyword);
+
+    // === 토큰 관련 조회 ===
+
+    /**
+     * 토큰이 만료되었거나 곧 만료될 API 조회
+     */
+    @Query("SELECT e FROM ExternalApi e WHERE (e.tokenExpiresAt IS NULL OR e.tokenExpiresAt <= :warningTime) AND e.deleted = false")
+    List<ExternalApi> findByTokenExpiresAtBeforeOrTokenExpiresAtIsNull(@Param("warningTime") LocalDateTime warningTime);
+
+    /**
+     * 자동 토큰 갱신이 활성화된 API 조회
+     */
+    List<ExternalApi> findByAutoTokenRefreshTrueAndDeletedFalse();
+
+    /**
+     * 토큰이 만료된 API 조회
+     */
+    @Query("SELECT e FROM ExternalApi e WHERE e.tokenExpiresAt <= :now AND e.deleted = false")
+    List<ExternalApi> findByTokenExpiresAtBefore(@Param("now") LocalDateTime now);
 
     // === 검색 기능 ===
 

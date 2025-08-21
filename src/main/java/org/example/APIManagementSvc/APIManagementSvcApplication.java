@@ -3,6 +3,7 @@ package org.example.APIManagementSvc;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
 import org.springframework.context.annotation.ComponentScan;
+import org.springframework.scheduling.annotation.EnableScheduling;
 
 /**
  * Custom API Service의 메인 애플리케이션 클래스
@@ -12,9 +13,11 @@ import org.springframework.context.annotation.ComponentScan;
  * - Spring Boot 자동 구성 활성화
  * - 애플리케이션 시작 시 필요한 빈들을 스캔하고 초기화
  * - 서블릿 컨테이너 내장 및 HTTP 서버 구동
+ * - 스케줄링 작업 활성화 (토큰 자동 갱신 등)
  */
 @SpringBootApplication
 @ComponentScan(basePackages = "org.example.APIManagementSvc")
+@EnableScheduling
 public class APIManagementSvcApplication {
 
     /**

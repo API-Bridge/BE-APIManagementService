@@ -55,6 +55,24 @@ public class ExternalApi {
     @Column(name = "api_keyword", nullable = false, length = 255)
     private ApiKeyword apiKeyword;
 
+    /** API 키 참조 */
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "api_key_id")
+    private ApiKey apiKeyEntity;
+
+    /** API 토큰 (인증용) */
+    @Column(name = "api_token", columnDefinition = "TEXT")
+    private String apiToken;
+
+    /** 토큰 만료 시간 */
+    @Column(name = "token_expires_at")
+    @JsonFormat(pattern = "yyyy-MM-dd HH:mm:ss")
+    private LocalDateTime tokenExpiresAt;
+
+    /** 토큰 자동 갱신 여부 */
+    @Column(name = "auto_token_refresh", nullable = false)
+    private Boolean autoTokenRefresh = true;
+
     /** API의 HTTP 메소드 */
     @Column(name = "http_method", nullable = false, length = 10)
     private String httpMethod;
@@ -106,12 +124,111 @@ public class ExternalApi {
     }
 
     /**
+     * API 등록 시 기본 정보와 인증 정보 설정
+     */
+    public void initializeApiWithAuth(String apiId, String apiName, String apiUrl, String apiIssuer, 
+                                    String apiOwner, String httpMethod, String apiDescription,
+                                    ApiKey apiKey, String apiToken, LocalDateTime tokenExpiresAt) {
+        initializeApi(apiId, apiName, apiUrl, apiIssuer, apiOwner, httpMethod, apiDescription);
+        this.apiKeyEntity = apiKey;
+        this.apiToken = apiToken;
+        this.tokenExpiresAt = tokenExpiresAt;
+    }
+
+    /**
      * AI 분류 결과 설정
      */
     public void setAiClassification(ApiDomain domain, ApiKeyword keyword) {
         this.apiDomain = domain;
         this.apiKeyword = keyword;
         this.updatedAt = LocalDateTime.now();
+    }
+
+    /**
+     * API 키 설정
+     */
+    public void setApiKey(ApiKey apiKey) {
+        this.apiKeyEntity = apiKey;
+        this.updatedAt = LocalDateTime.now();
+    }
+
+    /**
+     * API 토큰 설정
+     */
+    public void setApiToken(String apiToken, LocalDateTime expiresAt) {
+        this.apiToken = apiToken;
+        this.tokenExpiresAt = expiresAt;
+        this.updatedAt = LocalDateTime.now();
+    }
+
+    /**
+     * 토큰 자동 갱신 설정
+     */
+    public void setAutoTokenRefresh(Boolean autoRefresh) {
+        this.autoTokenRefresh = autoRefresh;
+        this.updatedAt = LocalDateTime.now();
+    }
+
+    /**
+     * 토큰이 만료되었는지 확인
+     */
+    public boolean isTokenExpired() {
+        return tokenExpiresAt != null && LocalDateTime.now().isAfter(tokenExpiresAt);
+    }
+
+    /**
+     * 토큰이 곧 만료될 예정인지 확인 (1시간 전)
+     */
+    public boolean isTokenExpiringSoon() {
+        if (tokenExpiresAt == null) return false;
+        LocalDateTime warningTime = tokenExpiresAt.minusHours(1);
+        return LocalDateTime.now().isAfter(warningTime);
+    }
+
+    /**
+     * API 인증 정보가 설정되어 있는지 확인
+     */
+    public boolean hasAuthInfo() {
+        return apiKeyEntity != null;
+    }
+
+    /**
+     * 특정 API 서비스인지 확인
+     */
+    public boolean isApiService(String serviceName) {
+        return apiKeyEntity != null && apiKeyEntity.isService(serviceName);
+    }
+
+    /**
+     * SGIS API인지 확인
+     */
+    public boolean isSgisApi() {
+        return isApiService("SGIS") || 
+               (apiIssuer != null && 
+                (apiIssuer.contains("kostat") || 
+                 apiIssuer.contains("통계청") ||
+                 apiUrl.contains("sgisapi.kostat.go.kr")));
+    }
+
+    /**
+     * API 키가 설정되어 있는지 확인
+     */
+    public boolean hasApiKey() {
+        return apiKeyEntity != null;
+    }
+
+    /**
+     * API 키 조회
+     */
+    public ApiKey getApiKey() {
+        return apiKeyEntity;
+    }
+
+    /**
+     * API 토큰이 설정되어 있는지 확인
+     */
+    public boolean hasToken() {
+        return apiToken != null && !apiToken.trim().isEmpty();
     }
 
     /**
