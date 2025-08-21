@@ -25,18 +25,15 @@ import java.time.LocalDateTime;
 @EntityListeners(AuditingEntityListener.class)
 public abstract class BaseEntity {
 
-    /** 엔티티 기본 키 (자동 증가) */
-    @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
-    private Long id;
 
     /** 엔티티 생성 일시 (JPA Auditing을 통해 자동 설정) */
     @CreatedDate
-    @Column(nullable = false, updatable = false)
+    @Column(name = "created_at", nullable = false, updatable = false)
     private LocalDateTime createdAt;
 
     /** 엔티티 마지막 수정 일시 (JPA Auditing을 통해 자동 업데이트) */
     @LastModifiedDate
+    @Column(name = "updated_at")
     private LocalDateTime updatedAt;
 
     /** Soft Delete를 위한 삭제 플래그 (기본값: false) */

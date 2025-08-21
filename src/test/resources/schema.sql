@@ -48,6 +48,33 @@ CREATE TABLE IF NOT EXISTS ai_classifications (
     PRIMARY KEY (classification_id)
 );
 
+-- api_keys 테이블
+CREATE TABLE IF NOT EXISTS api_keys (
+    key_id VARCHAR(100) NOT NULL,
+    organization_name VARCHAR(255) NOT NULL,
+    organization_code VARCHAR(100),
+    contact_email VARCHAR(255) NOT NULL,
+    contact_phone VARCHAR(50),
+    api_service_name VARCHAR(100) NOT NULL,
+    api_service_url VARCHAR(500),
+    api_key VARCHAR(500) NOT NULL,
+    secret_key VARCHAR(500),
+    daily_limit INT,
+    monthly_limit INT,
+    current_daily_usage INT DEFAULT 0,
+    current_monthly_usage INT DEFAULT 0,
+    issued_at TIMESTAMP NOT NULL,
+    expires_at TIMESTAMP,
+    last_used_at TIMESTAMP,
+    status VARCHAR(50) NOT NULL,
+    description TEXT,
+    requested_apis TEXT,
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    deleted BOOLEAN NOT NULL DEFAULT FALSE,
+    PRIMARY KEY (key_id)
+);
+
 -- 인덱스 생성
 CREATE INDEX IF NOT EXISTS idx_api_domain ON external_api (api_domain);
 CREATE INDEX IF NOT EXISTS idx_api_owner ON external_api (api_owner);

@@ -8,6 +8,9 @@ import lombok.AllArgsConstructor;
 import lombok.Builder;
 import com.fasterxml.jackson.annotation.JsonFormat;
 import org.example.APIManagementSvc.domain.enums.ApiKeyStatus;
+import org.springframework.data.annotation.CreatedDate;
+import org.springframework.data.annotation.LastModifiedDate;
+import org.springframework.data.jpa.domain.support.AuditingEntityListener;
 
 import java.time.LocalDateTime;
 
@@ -33,13 +36,15 @@ import java.time.LocalDateTime;
 @NoArgsConstructor
 @AllArgsConstructor
 @Builder(toBuilder = true)
+@EntityListeners(AuditingEntityListener.class)
 public class ApiKey extends BaseEntity {
 
     /**
      * 고유 API 키 ID
      * 예: "ORG_001", "ORG_002"
      */
-    @Column(name = "key_id", length = 100, unique = true)
+    @Id
+    @Column(name = "key_id", length = 100)
     private String keyId;
 
     /**

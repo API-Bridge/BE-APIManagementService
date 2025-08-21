@@ -7,6 +7,7 @@ import org.example.APIManagementSvc.domain.Entity.ApiKey;
 import org.example.APIManagementSvc.domain.enums.ApiKeyStatus;
 import org.example.APIManagementSvc.dto.common.ApiResponse;
 import org.example.APIManagementSvc.dto.common.PageResponse;
+import org.example.APIManagementSvc.dto.apikey.ApiKeyRegistrationRequest;
 import org.example.APIManagementSvc.service.ApiKeyService;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
