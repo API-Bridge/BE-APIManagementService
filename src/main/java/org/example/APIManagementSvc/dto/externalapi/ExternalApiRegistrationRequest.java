@@ -35,7 +35,7 @@ public class ExternalApiRegistrationRequest {
     @Size(max = 255, message = "API 발급처는 255자를 초과할 수 없습니다")
     private String apiIssuer;
 
-    /** API를 추가한 사용자 ID */
+    /** API를 추가한 관리자 ID */
     @NotBlank(message = "API 소유자 ID는 필수입니다")
     @Size(max = 36, message = "API 소유자 ID는 36자를 초과할 수 없습니다")
     private String apiOwner;

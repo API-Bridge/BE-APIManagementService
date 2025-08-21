@@ -33,7 +33,7 @@ public class ExternalApiRegisterRequest {
     @NotBlank(message = "API 발급처는 필수입니다")
     private String apiIssuer;
     
-    /** API를 추가한 사용자 ID */
+    /** API를 추가한 관리자 ID */
     private String apiOwner;
     
     /** API 분류 도메인 */

@@ -308,7 +308,7 @@ public class ExternalApiController {
     }
 
     /**
-     * API 유효성 검증
+     * API 유효성 검증 - X
      * Rate Limit: 1시간에 최대 200회 (개발자 도구)
      * POST /api/v1/external-apis/{apiId}/validate
      */
@@ -330,39 +330,6 @@ public class ExternalApiController {
             log.error("Failed to validate API: {}", e.getMessage(), e);
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
                     .body(ApiResponse.error("API 유효성 검증에 실패했습니다: " + e.getMessage()));
-        }
-    }
-
-    /**
-     * API 복사
-     * Rate Limit: 1시간에 최대 50회 (관리자 작업)
-     * POST /api/v1/external-apis/{apiId}/copy
-     */
-    @PostMapping("/{apiId}/copy")
-    @RateLimit(value = 50, timeUnit = TimeUnit.HOURS, keyType = RateLimit.KeyType.IP_ADDRESS)
-    public ResponseEntity<ApiResponse<ExternalApiResponse>> copyApi(
-            @PathVariable String apiId,
-            @RequestParam String newName) {
-        
-        log.info("Copying API: {} to {}", apiId, newName);
-        
-        try {
-            ExternalApi copiedApi = apiManagementService.copyApi(apiId, newName);
-            
-            // Entity를 Response DTO로 변환
-            ExternalApiResponse response = convertToResponse(copiedApi);
-            
-            return ResponseEntity.status(HttpStatus.CREATED)
-                    .body(ApiResponse.success(response, "API가 성공적으로 복사되었습니다."));
-                    
-        } catch (IllegalArgumentException e) {
-            log.warn("API not found: {}", apiId);
-            return ResponseEntity.status(HttpStatus.NOT_FOUND)
-                    .body(ApiResponse.error("API를 찾을 수 없습니다: " + apiId));
-        } catch (Exception e) {
-            log.error("Failed to copy API: {}", e.getMessage(), e);
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                    .body(ApiResponse.error("API 복사에 실패했습니다: " + e.getMessage()));
         }
     }
 

@@ -314,7 +314,7 @@ public class AiClassificationService {
     }
 
     /**
-     * 분류 결과 삭제 (Soft Delete)
+     * 분류 결과 삭제 (Soft Delete) - X
      */
     @Transactional
     public void deleteClassification(String classificationId) {
@@ -328,7 +328,7 @@ public class AiClassificationService {
     }
 
     /**
-     * API의 모든 분류 결과 삭제
+     * API의 모든 분류 결과 삭제 - X
      */
     @Transactional
     public void deleteAllClassificationsByApiId(String apiId) {

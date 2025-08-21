@@ -29,7 +29,7 @@ public class AiClassificationController {
     private final AiClassificationService aiClassificationService;
 
     /**
-     * API 자동 분류 실행
+     * API 자동 분류 실행 - X
      */
     @PostMapping("/classify")
     public ResponseEntity<ApiResponse<AiClassificationResponse>> classifyApi(
@@ -74,7 +74,7 @@ public class AiClassificationController {
     }
 
     /**
-     * 분류 결과 조회
+     * 분류 결과 조회 - X
      */
     @GetMapping("/{classificationId}")
     public ResponseEntity<ApiResponse<AiClassificationResponse>> getClassification(
@@ -89,7 +89,7 @@ public class AiClassificationController {
     }
 
     /**
-     * API의 분류 결과 조회
+     * API의 분류 결과 조회 - X
      */
     @GetMapping("/api/{apiId}")
     public ResponseEntity<ApiResponse<List<AiClassificationResponse>>> getClassificationsByApiId(
@@ -104,7 +104,7 @@ public class AiClassificationController {
     }
 
     /**
-     * 도메인별 분류 결과 조회
+     * 도메인별 분류 결과 조회 - X
      */
     @GetMapping("/domain/{domain}")
     public ResponseEntity<ApiResponse<List<AiClassificationResponse>>> getClassificationsByDomain(
@@ -119,7 +119,7 @@ public class AiClassificationController {
     }
 
     /**
-     * 키워드별 분류 결과 조회
+     * 키워드별 분류 결과 조회 - X
      */
     @GetMapping("/keyword/{keyword}")
     public ResponseEntity<ApiResponse<List<AiClassificationResponse>>> getClassificationsByKeyword(
@@ -134,7 +134,7 @@ public class AiClassificationController {
     }
 
     /**
-     * 최근 분류 결과 조회
+     * 최근 분류 결과 조회 - X
      */
     @GetMapping("/recent")
     public ResponseEntity<ApiResponse<List<AiClassificationResponse>>> getRecentClassifications(
@@ -149,7 +149,7 @@ public class AiClassificationController {
     }
 
     /**
-     * 분류 결과 통계 조회
+     * 분류 결과 통계 조회 - X
      */
     @GetMapping("/stats/domain")
     public ResponseEntity<ApiResponse<List<Object[]>>> getClassificationStatsByDomain() {
@@ -164,7 +164,7 @@ public class AiClassificationController {
     }
 
     /**
-     * 분류 결과 검색
+     * 분류 결과 검색 - X
      */
     @GetMapping("/search")
     public ResponseEntity<ApiResponse<List<AiClassificationResponse>>> searchClassifications(
@@ -179,7 +179,7 @@ public class AiClassificationController {
     }
 
     /**
-     * 분류 결과 삭제
+     * 분류 결과 삭제 - X
      */
     @DeleteMapping("/{classificationId}")
     public ResponseEntity<ApiResponse<Void>> deleteClassification(

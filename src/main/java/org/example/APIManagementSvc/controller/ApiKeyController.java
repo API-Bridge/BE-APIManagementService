@@ -8,6 +8,7 @@ import org.example.APIManagementSvc.domain.enums.ApiKeyStatus;
 import org.example.APIManagementSvc.dto.common.ApiResponse;
 import org.example.APIManagementSvc.dto.common.PageResponse;
 import org.example.APIManagementSvc.dto.apikey.ApiKeyRegistrationRequest;
+import org.example.APIManagementSvc.dto.apikey.ApiKeyUpdateRequest;
 import org.example.APIManagementSvc.service.ApiKeyService;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -92,11 +93,11 @@ public class ApiKeyController {
     @RateLimit(value = 20, timeUnit = TimeUnit.MINUTES, keyType = RateLimit.KeyType.IP_ADDRESS)
     public ResponseEntity<ApiResponse<List<ApiKey>>> getApiKeysByOrganization(@PathVariable String organizationName) {
         log.debug("기관별 API 키 조회: {}", organizationName);
-        
+
         try {
             List<ApiKey> apiKeys = apiKeyService.getApiKeysByOrganization(organizationName);
             return ResponseEntity.ok(ApiResponse.success(apiKeys));
-            
+
         } catch (Exception e) {
             log.error("기관별 API 키 조회 실패: {} - {}", organizationName, e.getMessage());
             return ResponseEntity.badRequest()
@@ -215,7 +216,7 @@ public class ApiKeyController {
     }
 
     /**
-     * 활성 API 키 조회
+     * 활성 API 키 조회 -> 페이지네이션 필요
      */
     @GetMapping("/active")
     @RateLimit(value = 20, timeUnit = TimeUnit.MINUTES, keyType = RateLimit.KeyType.IP_ADDRESS)
@@ -250,36 +251,4 @@ public class ApiKeyController {
                 .build();
     }
 
-    // === 내부 DTO 클래스들 ===
-
-    @lombok.Data
-    public static class ApiKeyRegistrationRequest {
-        private String organizationName;
-        private String organizationCode;
-        private String contactEmail;
-        private String contactPhone;
-        private String apiServiceName;
-        private String apiServiceUrl;
-        private String apiKey;
-        private String secretKey;
-        private Integer dailyLimit;
-        private Integer monthlyLimit;
-        private java.time.LocalDateTime expiresAt;
-        private String description;
-        private String requestedApis;
-    }
-
-    @lombok.Data
-    public static class ApiKeyUpdateRequest {
-        private String organizationName;
-        private String organizationCode;
-        private String contactEmail;
-        private String contactPhone;
-        private String apiServiceUrl;
-        private Integer dailyLimit;
-        private Integer monthlyLimit;
-        private java.time.LocalDateTime expiresAt;
-        private String description;
-        private String requestedApis;
-    }
 }

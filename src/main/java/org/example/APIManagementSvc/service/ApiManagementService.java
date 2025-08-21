@@ -285,61 +285,6 @@ public class ApiManagementService {
     }
 
     /**
-     * API 복사 (새로운 API 생성)
-     */
-    @Transactional
-    public ExternalApi copyApi(String originalApiId, String newApiName) {
-        log.info("Copying API: {} to {}", originalApiId, newApiName);
-        
-        try {
-            // 1. 원본 API 조회
-            ExternalApi originalApi = externalApiService.getApiById(originalApiId)
-                    .orElseThrow(() -> new IllegalArgumentException("Original API not found: " + originalApiId));
-            
-            // 2. 새 API 생성
-            ExternalApi newApi = new ExternalApi();
-            newApi.setApiId(UUID.randomUUID().toString());
-            newApi.setApiName(newApiName);
-            newApi.setApiDescription(originalApi.getApiDescription() + " (복사본)");
-            newApi.setApiUrl(originalApi.getApiUrl());
-            newApi.setHttpMethod(originalApi.getHttpMethod());
-            newApi.setApiDomain(originalApi.getApiDomain());
-            newApi.setApiKeyword(originalApi.getApiKeyword());
-            newApi.setApiIssuer(originalApi.getApiIssuer());
-            newApi.setApiEffectiveness(originalApi.getApiEffectiveness());
-            newApi.setDeleted(false);
-            newApi.setCreatedAt(LocalDateTime.now());
-            newApi.setUpdatedAt(LocalDateTime.now());
-            
-            ExternalApi copiedApi = externalApiService.registerApi(newApi);
-            
-            // 3. 파라미터 복사
-            List<ApiParameter> originalParameters = apiParameterService.getParametersByApiId(originalApiId);
-            for (ApiParameter originalParam : originalParameters) {
-                ApiParameter newParam = new ApiParameter();
-                newParam.setParameterId(UUID.randomUUID().toString());
-                newParam.setApiId(copiedApi.getApiId());
-                newParam.setParamName(originalParam.getParamName());
-                newParam.setParamType(originalParam.getParamType());
-                newParam.setIsRequired(originalParam.getIsRequired());
-                newParam.setDefaultValue(originalParam.getDefaultValue());
-                // ApiParameter 엔티티에는 description과 example 필드가 없으므로 제거
-                newParam.setCreatedAt(LocalDateTime.now());
-                newParam.setUpdatedAt(LocalDateTime.now());
-                
-                apiParameterService.saveParameter(newParam);
-            }
-            
-            log.info("Successfully copied API with {} parameters", originalParameters.size());
-            return copiedApi;
-            
-        } catch (Exception e) {
-            log.error("Failed to copy API: {}", e.getMessage(), e);
-            throw new RuntimeException("API copy failed: " + e.getMessage(), e);
-        }
-    }
-
-    /**
      * 도메인별 API와 파라미터 조회
      */
     public List<ApiWithParameters> getApisWithParametersByDomain(String domain) {

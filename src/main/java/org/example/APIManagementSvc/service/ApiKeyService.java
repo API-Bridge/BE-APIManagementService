@@ -145,14 +145,6 @@ public class ApiKeyService {
     }
 
     /**
-     * API 키 값으로 조회
-     */
-    @Transactional(readOnly = true)
-    public Optional<ApiKey> getApiKeyByApiKey(String apiKey) {
-        return apiKeyRepository.findByApiKeyAndDeletedFalse(apiKey);
-    }
-
-    /**
      * 모든 활성 API 키 조회
      */
     @Transactional(readOnly = true)

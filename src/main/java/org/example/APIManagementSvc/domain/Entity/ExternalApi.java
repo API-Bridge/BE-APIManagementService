@@ -41,7 +41,7 @@ public class ExternalApi {
     @Column(name = "api_issuer", nullable = false, length = 255)
     private String apiIssuer;
 
-    /** API를 추가한 사용자 ID */
+    /** API를 추가한 관리자 ID */
     @Column(name = "api_owner", length = 36)
     private String apiOwner;
 

@@ -54,7 +54,7 @@ public class ApiHealthController {
     }
 
     /**
-     * 특정 API의 헬스 상태 조회 (캐시에서)
+     * 특정 API의 헬스 상태 조회 (캐시에서) - X
      */
     @GetMapping("/status/{apiId}")
     @RateLimit(value = 30, timeUnit = TimeUnit.MINUTES, keyType = RateLimit.KeyType.IP_ADDRESS)
@@ -78,7 +78,7 @@ public class ApiHealthController {
     }
 
     /**
-     * 특정 API의 헬스체크 강제 갱신
+     * 특정 API의 헬스체크 강제 갱신 --???
      */
     @PostMapping("/refresh/{apiId}")
     @RateLimit(value = 5, timeUnit = TimeUnit.MINUTES, keyType = RateLimit.KeyType.IP_ADDRESS)
@@ -136,7 +136,7 @@ public class ApiHealthController {
     }
 
     /**
-     * 도메인별 API 헬스 상태 요약
+     * 도메인별 API 헬스 상태 요약 - X
      */
     @GetMapping("/summary/domain/{domain}")
     @RateLimit(value = 20, timeUnit = TimeUnit.MINUTES, keyType = RateLimit.KeyType.IP_ADDRESS)
