@@ -1,6 +1,7 @@
 package org.example.APIManagementSvc.integration;
 
-import lombok.extern.slf4j.Slf4j;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.example.APIManagementSvc.domain.Entity.ApiKey;
 import org.example.APIManagementSvc.domain.enums.ApiKeyStatus;
 import org.example.APIManagementSvc.dto.apikey.ApiKeyRegistrationRequest;
@@ -22,12 +23,13 @@ import java.time.LocalDateTime;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-@Slf4j
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
 @ActiveProfiles("test")
 @Transactional
 @DisplayName("ApiKey 통합 테스트")
 class ApiKeyIntegrationTest {
+
+    private static final Logger log = LoggerFactory.getLogger(ApiKeyIntegrationTest.class);
 
     @Autowired
     private TestRestTemplate restTemplate;
@@ -189,15 +191,39 @@ class ApiKeyIntegrationTest {
         assertThat(organizationKeys).hasSize(1);
         assertThat(organizationKeys.get(0).getKeyId()).isEqualTo(savedApiKey.getKeyId());
 
-        // 3. 서비스별 API 키 조회
-        var serviceKeys = apiKeyService.getApiKeysByService("INTEGRATION_TEST_API");
-        assertThat(serviceKeys).hasSize(1);
-        assertThat(serviceKeys.get(0).getKeyId()).isEqualTo(savedApiKey.getKeyId());
-
-        // 4. 활성 API 키 조회
+        // 3. 활성 API 키 조회
         var activeKeys = apiKeyService.getAllActiveApiKeys();
         assertThat(activeKeys).hasSize(1);
         assertThat(activeKeys.get(0).getKeyId()).isEqualTo(savedApiKey.getKeyId());
+    }
+
+    @Test
+    @DisplayName("조직별 API 키 조회 성공")
+    void getApiKeysByOrganization_Success() {
+        // given
+        String organizationName = "테스트 조직";
+
+        // when
+        ResponseEntity<String> response = restTemplate.getForEntity(
+                baseUrl + "/organization/" + organizationName, String.class);
+
+        // then
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
+        assertThat(response.getBody()).isNotNull();
+        assertThat(response.getBody()).contains("success");
+    }
+
+    @Test
+    @DisplayName("모든 API 키 조회 (페이지네이션) 성공")
+    void getAllApiKeys_Success() {
+        // when
+        ResponseEntity<String> response = restTemplate.getForEntity(
+                baseUrl + "?page=0&size=20", String.class);
+
+        // then
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
+        assertThat(response.getBody()).isNotNull();
+        assertThat(response.getBody()).contains("success");
     }
 
     private ApiKey createTestApiKey() {

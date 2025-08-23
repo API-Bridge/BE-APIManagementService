@@ -56,11 +56,6 @@ public interface ExternalApiRepository extends JpaRepository<ExternalApi, String
     List<ExternalApi> findByApiKeyword(ApiKeyword apiKeyword);
 
     /**
-     * 도메인과 키워드로 조회
-     */
-    List<ExternalApi> findByApiDomainAndApiKeyword(ApiDomain apiDomain, ApiKeyword apiKeyword);
-
-    /**
      * 도메인으로 페이징 조회
      */
     Page<ExternalApi> findByApiDomain(ApiDomain apiDomain, Pageable pageable);
@@ -206,6 +201,11 @@ public interface ExternalApiRepository extends JpaRepository<ExternalApi, String
      * 키워드별 삭제되지 않은 API 조회
      */
     List<ExternalApi> findByApiKeywordAndDeletedFalse(ApiKeyword apiKeyword);
+
+    /**
+     * 도메인과 키워드로 삭제되지 않은 API 조회
+     */
+    List<ExternalApi> findByApiDomainAndApiKeywordAndDeletedFalse(ApiDomain apiDomain, ApiKeyword apiKeyword);
 
     /**
      * 소유자별 삭제되지 않은 API 조회

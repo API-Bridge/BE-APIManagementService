@@ -114,10 +114,15 @@ public class ExternalApiService {
             log.info("API key provided but not set in ExternalApi entity");
         }
         
+        // 토큰 설정 (토큰 만료 시간이 이미 설정된 경우 그대로 사용)
         if (apiToken != null && !apiToken.trim().isEmpty()) {
-            // 토큰 만료 시간을 4시간 후로 설정
-            LocalDateTime tokenExpiresAt = LocalDateTime.now().plusHours(4);
-            api.setApiToken(apiToken.trim(), tokenExpiresAt);
+            if (api.getTokenExpiresAt() == null) {
+                // 토큰 만료 시간이 설정되지 않은 경우 4시간 후로 설정
+                LocalDateTime tokenExpiresAt = LocalDateTime.now().plusHours(4);
+                api.setTokenExpiresAt(tokenExpiresAt);
+                log.info("토큰 만료 시간 자동 설정: {}", tokenExpiresAt);
+            }
+            log.info("API 토큰 설정 완료");
         }
         
         return externalApiRepository.save(api);
@@ -137,33 +142,6 @@ public class ExternalApiService {
     public List<ExternalApi> searchApis(String query) {
         log.debug("Searching APIs with query: {}", query);
         return externalApiRepository.findBySearchTermAndDeletedFalse(query);
-    }
-
-    /**
-     * 도메인별 API 조회
-     */
-    public List<ExternalApi> getApisByDomain(ApiDomain domain) {
-        log.debug("Getting APIs by domain: {}", domain);
-        return externalApiRepository.findByApiDomainAndDeletedFalse(domain);
-    }
-
-    /**
-     * 키워드별 API 조회
-     */
-    public List<ExternalApi> getApisByKeyword(ApiKeyword keyword) {
-        log.debug("Getting APIs by keyword: {}", keyword);
-        return externalApiRepository.findByApiKeywordAndDeletedFalse(keyword);
-    }
-
-    /**
-     * 도메인과 키워드 조합으로 API 조회
-     */
-    public List<ExternalApi> getApisByDomainAndKeyword(ApiDomain domain, ApiKeyword keyword) {
-        log.debug("Getting APIs by domain: {} and keyword: {}", domain, keyword);
-        return externalApiRepository.findByApiDomainAndApiKeyword(domain, keyword)
-                .stream()
-                .filter(api -> !api.getDeleted())
-                .toList();
     }
 
     /**

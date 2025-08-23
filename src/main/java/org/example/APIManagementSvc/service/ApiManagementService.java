@@ -53,7 +53,14 @@ public class ApiManagementService {
         log.info("Registering API with parameters and auth: {}", api.getApiName());
         
         try {
-            // 1. AI 자동 분류 수행
+            // 1. API ID 설정 (AI 분류를 위해 필요)
+            if (api.getApiId() == null || api.getApiId().trim().isEmpty()) {
+                String apiId = "api_" + UUID.randomUUID().toString().replace("-", "").substring(0, 16);
+                api.setApiId(apiId);
+                log.info("API ID 자동 생성: {}", apiId);
+            }
+            
+            // 2. AI 자동 분류 수행 (도메인이나 키워드가 설정되지 않은 경우)
             if (api.getApiDomain() == null || api.getApiKeyword() == null) {
                 var classification = aiClassificationService.classifyApi(api.getApiId(), api.getApiName(), api.getApiDescription(), api.getApiUrl(), null);
                 if (api.getApiDomain() == null) {
@@ -64,10 +71,18 @@ public class ApiManagementService {
                 }
             }
             
-            // 2. API 등록 (인증 정보 포함)
+            // 3. 토큰 만료 시간 설정 (토큰이 제공된 경우)
+            if (apiToken != null && !apiToken.trim().isEmpty()) {
+                // 토큰 만료 시간을 4시간 후로 설정
+                LocalDateTime tokenExpiresAt = LocalDateTime.now().plusHours(4);
+                api.setTokenExpiresAt(tokenExpiresAt);
+                log.info("API 토큰 설정 완료 - 만료 시간: {}", tokenExpiresAt);
+            }
+            
+            // 4. API 등록 (인증 정보 포함)
             ExternalApi registeredApi = externalApiService.registerApiWithAuth(api, apiKey, apiToken);
             
-            // 3. 파라미터 등록
+            // 5. 파라미터 등록
             if (parameters != null && !parameters.isEmpty()) {
                 for (ApiParameter parameter : parameters) {
                     parameter.setApiId(registeredApi.getApiId());
@@ -75,7 +90,7 @@ public class ApiManagementService {
                 }
             }
             
-            // 4. 초기 헬스체크 수행
+            // 6. 초기 헬스체크 수행
             try {
                 apiHealthCheckService.checkApiHealth(registeredApi);
             } catch (Exception e) {
@@ -164,7 +179,7 @@ public class ApiManagementService {
     /**
      * API와 파라미터 함께 조회
      */
-    public ApiWithParameters getApiWithParameters(String apiId) {
+    public Object getApiWithParameters(String apiId) {
         log.debug("Getting API with parameters: {}", apiId);
         
         ExternalApi api = externalApiService.getApiById(apiId)
@@ -340,69 +355,6 @@ public class ApiManagementService {
     }
 
     /**
-     * 도메인별 API와 파라미터 조회
-     */
-    public List<ApiWithParameters> getApisWithParametersByDomain(String domain) {
-        log.debug("Getting APIs with parameters by domain: {}", domain);
-        
-        ApiDomain apiDomain = ApiDomain.valueOf(domain.toUpperCase());
-        List<ExternalApi> apis = externalApiService.getApisByDomain(apiDomain);
-        
-        return apis.stream()
-                .map(api -> {
-                    List<ApiParameter> parameters = apiParameterService.getParametersByApiId(api.getApiId());
-                    return ApiWithParameters.builder()
-                            .api(api)
-                            .parameters(parameters)
-                            .build();
-                })
-                .toList();
-    }
-
-    /**
-     * 키워드별 API와 파라미터 조회
-     */
-    public List<ApiWithParameters> getApisWithParametersByKeyword(String keyword) {
-        log.debug("Getting APIs with parameters by keyword: {}", keyword);
-        
-        ApiKeyword apiKeyword = ApiKeyword.valueOf(keyword.toUpperCase());
-        List<ExternalApi> apis = externalApiService.getApisByKeyword(apiKeyword);
-        
-        return apis.stream()
-                .map(api -> {
-                    List<ApiParameter> parameters = apiParameterService.getParametersByApiId(api.getApiId());
-                    return ApiWithParameters.builder()
-                            .api(api)
-                            .parameters(parameters)
-                            .build();
-                })
-                .toList();
-    }
-
-    /**
-     * 도메인과 키워드 조합으로 API와 파라미터 조회
-     */
-    public List<ApiWithParameters> getApisWithParametersByDomainAndKeyword(String domain, String keyword) {
-        log.debug("Getting APIs with parameters by domain: {} and keyword: {}", domain, keyword);
-        
-        ApiDomain apiDomain = ApiDomain.valueOf(domain.toUpperCase());
-        ApiKeyword apiKeyword = ApiKeyword.valueOf(keyword.toUpperCase());
-        
-        // 도메인과 키워드 모두 일치하는 API 조회
-        List<ExternalApi> apis = externalApiService.getApisByDomainAndKeyword(apiDomain, apiKeyword);
-        
-        return apis.stream()
-                .map(api -> {
-                    List<ApiParameter> parameters = apiParameterService.getParametersByApiId(api.getApiId());
-                    return ApiWithParameters.builder()
-                            .api(api)
-                            .parameters(parameters)
-                            .build();
-                })
-                .toList();
-    }
-
-    /**
      * 복합 검색: 도메인, 키워드, 검색어를 조합하여 API 검색
      */
     public List<ApiWithParameters> searchApisWithParameters(String domain, String keyword, String searchTerm) {
@@ -412,16 +364,17 @@ public class ApiManagementService {
         
         if (domain != null && keyword != null) {
             // 도메인 + 키워드 조합 검색
-            apis = externalApiService.getApisByDomainAndKeyword(
-                ApiDomain.valueOf(domain.toUpperCase()), 
-                ApiKeyword.valueOf(keyword.toUpperCase())
-            );
+            ApiDomain apiDomain = ApiDomain.valueOf(domain.toUpperCase());
+            ApiKeyword apiKeyword = ApiKeyword.valueOf(keyword.toUpperCase());
+            apis = externalApiRepository.findByApiDomainAndApiKeywordAndDeletedFalse(apiDomain, apiKeyword);
         } else if (domain != null) {
             // 도메인만으로 검색
-            apis = externalApiService.getApisByDomain(ApiDomain.valueOf(domain.toUpperCase()));
+            ApiDomain apiDomain = ApiDomain.valueOf(domain.toUpperCase());
+            apis = externalApiRepository.findByApiDomainAndDeletedFalse(apiDomain);
         } else if (keyword != null) {
             // 키워드만으로 검색
-            apis = externalApiService.getApisByKeyword(ApiKeyword.valueOf(keyword.toUpperCase()));
+            ApiKeyword apiKeyword = ApiKeyword.valueOf(keyword.toUpperCase());
+            apis = externalApiRepository.findByApiKeywordAndDeletedFalse(apiKeyword);
         } else {
             // 검색어만으로 검색 (전체 API에서 검색)
             apis = externalApiService.searchApis(searchTerm);

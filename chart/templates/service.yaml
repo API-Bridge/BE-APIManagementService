@@ -1,15 +1,32 @@
 apiVersion: v1
 kind: Service
 metadata:
-  name: {{ include "chart.fullname" . }}
+  name: {{ include "api-management-service.fullname" . }}
   labels:
-    {{- include "chart.labels" . | nindent 4 }}
+    {{- include "api-management-service.labels" . | nindent 4 }}
+    app.kubernetes.io/component: api-management
+    app.kubernetes.io/part-of: microservices
+  annotations:
+    prometheus.io/scrape: "true"
+    prometheus.io/port: "8080"
+    prometheus.io/path: "/api/v1/actuator/prometheus"
+    {{- with .Values.service.annotations }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
 spec:
   type: {{ .Values.service.type }}
   ports:
     - port: {{ .Values.service.port }}
-      targetPort: http
+      targetPort: {{ .Values.service.targetPort }}
       protocol: TCP
       name: http
+    - port: 8080
+      targetPort: 8080
+      protocol: TCP
+      name: management
   selector:
-    {{- include "chart.selectorLabels" . | nindent 4 }}
+    {{- include "api-management-service.selectorLabels" . | nindent 4 }}
+  sessionAffinity: None
+  sessionAffinityConfig:
+    clientIP:
+      timeoutSeconds: 10800

@@ -28,17 +28,12 @@ public interface ApiKeyRepository extends JpaRepository<ApiKey, String> {
     Optional<ApiKey> findByKeyIdAndDeletedFalse(String keyId);
 
     /**
-     * 기관명으로 조회
+     * 조직명으로 API 키 조회 (삭제되지 않은 것만)
      */
     List<ApiKey> findByOrganizationNameAndDeletedFalse(String organizationName);
 
     /**
-     * API 서비스명으로 조회
-     */
-    List<ApiKey> findByApiServiceNameAndDeletedFalse(String apiServiceName);
-
-    /**
-     * API 키 값으로 조회
+     * API 키로 API 키 조회 (삭제되지 않은 것만)
      */
     Optional<ApiKey> findByApiKeyAndDeletedFalse(String apiKey);
 

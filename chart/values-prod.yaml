@@ -1,0 +1,168 @@
+# Production environment values for API Management Service
+
+global:
+  environment: prod
+  clusterDomain: cluster.local
+
+# Production replicas
+replicaCount: 3
+
+# Production image
+image:
+  repository: your-registry/api-management-service
+  tag: "stable"
+  pullPolicy: IfNotPresent
+
+# Enable autoscaling in production
+hpa:
+  enabled: true
+  minReplicas: 3
+  maxReplicas: 15
+  targetCPUUtilizationPercentage: 70
+  targetMemoryUtilizationPercentage: 80
+
+# Enable ingress in production
+ingress:
+  enabled: true
+  className: "nginx"
+  annotations:
+    kubernetes.io/ingress.class: nginx
+    nginx.ingress.kubernetes.io/rewrite-target: /api/v1/$2
+    nginx.ingress.kubernetes.io/ssl-redirect: "true"
+    cert-manager.io/cluster-issuer: "letsencrypt-prod"
+    nginx.ingress.kubernetes.io/rate-limit: "100"
+    nginx.ingress.kubernetes.io/rate-limit-window: "1m"
+  hosts:
+    - host: api-management.yourdomain.com
+      paths:
+        - path: /api/v1(/|$)(.*)
+          pathType: Prefix
+  tls:
+    - secretName: api-management-tls
+      hosts:
+        - api-management.yourdomain.com
+
+# Production resource limits
+resources:
+  requests:
+    cpu: 1000m
+    memory: 2Gi
+  limits:
+    cpu: 4000m
+    memory: 8Gi
+
+# Production environment variables
+env:
+  SPRING_PROFILES_ACTIVE: "prod"
+  SERVER_PORT: "8080"
+  
+  # Production services
+  DB_URL: "jdbc:mysql://mysql-prod-service:3306/api_management_service_db?allowPublicKeyRetrieval=true&useSSL=false&serverTimezone=UTC&characterEncoding=UTF-8"
+  DB_USERNAME: "apimanagement_prod"
+  DB_PASSWORD: ""
+  
+  REDIS_HOST: "redis-prod-service"
+  REDIS_PORT: "6379"
+  
+  KAFKA_BOOTSTRAP_SERVERS: "kafka-prod-service:9092"
+  
+  # Production Auth0
+  AUTH0_ISSUER_URI: "https://your-domain.auth0.com/"
+  AUTH0_AUDIENCE: "https://api.yourservice.com"
+  
+  # Production Gemini AI
+  GEMINI_API_KEY: ""
+  GEMINI_API_URL: "https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent"
+  
+  # Production AWS
+  AWS_REGION: "ap-northeast-2"
+  
+  # Enable ELK in production
+  ELK_ENABLED: "true"
+  ELK_LOGSTASH_HOST: "logstash-prod-service"
+  ELK_ELASTICSEARCH_HOST: "elasticsearch-prod-service"
+
+# Production ConfigMap
+configMap:
+  enabled: true
+  data:
+    application.yml: |
+      spring:
+        application:
+          name: apimanagement
+        profiles:
+          active: ${SPRING_PROFILES_ACTIVE:prod}
+        jpa:
+          hibernate:
+            ddl-auto: validate
+            show-sql: false
+        kafka:
+          bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS}
+        redis:
+          host: ${REDIS_HOST}
+          port: ${REDIS_PORT}
+      management:
+        endpoints:
+          web:
+            exposure:
+              include: health,info,prometheus,metrics
+        endpoint:
+          health:
+            show-details: when-authorized
+      logging:
+        level:
+          org.example.apimanagement: INFO
+          org.springframework.security: WARN
+        file:
+          name: logs/apimanagement.log
+
+# Production Secret
+secret:
+  enabled: true
+  data:
+    DB_PASSWORD: ""
+    GEMINI_API_KEY: ""
+    AUTH0_CLIENT_SECRET: ""
+
+# Enable network policy in production
+networkPolicy:
+  enabled: true
+
+# Enable service monitor in production
+serviceMonitor:
+  enabled: true
+  interval: 15s
+
+# Enable pod disruption budget in production
+podDisruptionBudget:
+  enabled: true
+  minAvailable: 2
+
+# Production pod annotations
+podAnnotations:
+  production-environment: "true"
+  monitoring: "enabled"
+  security: "enabled"
+
+# Production security context
+securityContext:
+  capabilities:
+    drop:
+      - ALL
+  readOnlyRootFilesystem: true
+  allowPrivilegeEscalation: false
+  runAsNonRoot: true
+  runAsUser: 1001
+  runAsGroup: 1001
+
+# Production affinity
+affinity:
+  podAntiAffinity:
+    requiredDuringSchedulingIgnoredDuringExecution:
+      - labelSelector:
+          matchExpressions:
+            - key: app.kubernetes.io/name
+              operator: In
+              values:
+                - api-management-service
+        topologyKey: kubernetes.io/hostname

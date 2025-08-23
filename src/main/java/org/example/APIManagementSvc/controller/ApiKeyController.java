@@ -17,6 +17,11 @@ import org.springframework.web.bind.annotation.*;
 import jakarta.validation.Valid;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
+import java.util.stream.Collectors;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Sort;
+import org.example.APIManagementSvc.dto.apikey.ApiKeyResponse;
+import org.springframework.http.HttpStatus;
 
 /**
  * API 키 관리 컨트롤러
@@ -86,68 +91,63 @@ public class ApiKeyController {
     }
 
     /**
-     * 기관명으로 API 키 조회
+     * 조직별 API 키 목록 조회
      */
     @GetMapping("/organization/{organizationName}")
-    @RateLimit(value = 20, timeUnit = TimeUnit.MINUTES, keyType = RateLimit.KeyType.IP_ADDRESS)
-    public ResponseEntity<ApiResponse<List<ApiKey>>> getApiKeysByOrganization(@PathVariable String organizationName) {
-        log.debug("기관별 API 키 조회: {}", organizationName);
+    @RateLimit(value = 100, timeUnit = TimeUnit.HOURS, keyType = RateLimit.KeyType.IP_ADDRESS)
+    public ResponseEntity<ApiResponse<List<ApiKeyResponse>>> getApiKeysByOrganization(
+            @PathVariable String organizationName) {
+        log.info("Getting API keys by organization: {}", organizationName);
         
         try {
             List<ApiKey> apiKeys = apiKeyService.getApiKeysByOrganization(organizationName);
-            return ResponseEntity.ok(ApiResponse.success(apiKeys));
+            List<ApiKeyResponse> responses = apiKeys.stream()
+                    .map(this::convertToResponse)
+                    .collect(Collectors.toList());
             
+            return ResponseEntity.ok(ApiResponse.success(responses, 
+                String.format("조직 '%s'의 API 키 %d개를 조회했습니다.", organizationName, responses.size())));
+                
         } catch (Exception e) {
-            log.error("기관별 API 키 조회 실패: {} - {}", organizationName, e.getMessage());
-            return ResponseEntity.badRequest()
-                    .body(ApiResponse.error("기관별 API 키 조회 실패: " + e.getMessage()));
+            log.error("Failed to get API keys by organization: {}", e.getMessage(), e);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body(ApiResponse.error("조직별 API 키 조회에 실패했습니다: " + e.getMessage()));
         }
     }
 
     /**
-     * API 서비스별 API 키 조회
-     */
-    @GetMapping("/service/{apiServiceName}")
-    @RateLimit(value = 20, timeUnit = TimeUnit.MINUTES, keyType = RateLimit.KeyType.IP_ADDRESS)
-    public ResponseEntity<ApiResponse<List<ApiKey>>> getApiKeysByService(@PathVariable String apiServiceName) {
-        log.debug("서비스별 API 키 조회: {}", apiServiceName);
-        
-        try {
-            List<ApiKey> apiKeys = apiKeyService.getApiKeysByService(apiServiceName);
-            return ResponseEntity.ok(ApiResponse.success(apiKeys));
-            
-        } catch (Exception e) {
-            log.error("서비스별 API 키 조회 실패: {} - {}", apiServiceName, e.getMessage());
-            return ResponseEntity.badRequest()
-                    .body(ApiResponse.error("서비스별 API 키 조회 실패: " + e.getMessage()));
-        }
-    }
-
-    /**
-     * 모든 API 키 페이징 조회
+     * 모든 API 키 조회 (페이지네이션)
      */
     @GetMapping
-    @RateLimit(value = 30, timeUnit = TimeUnit.MINUTES, keyType = RateLimit.KeyType.IP_ADDRESS)
-    public ResponseEntity<ApiResponse<PageResponse<ApiKey>>> getAllApiKeys(Pageable pageable) {
-        log.debug("모든 API 키 페이징 조회");
+    @RateLimit(value = 100, timeUnit = TimeUnit.HOURS, keyType = RateLimit.KeyType.IP_ADDRESS)
+    public ResponseEntity<ApiResponse<PageResponse<ApiKeyResponse>>> getAllApiKeys(
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "20") int size) {
+        log.info("Getting all API keys: page {}, size {}", page, size);
         
         try {
-            Page<ApiKey> apiKeyPage = apiKeyService.getApiKeysWithPaging(pageable);
+            Pageable pageable = PageRequest.of(page, size, Sort.by("createdAt").descending());
+            Page<ApiKey> apiKeyPage = apiKeyService.getAllApiKeys(pageable);
             
-            PageResponse<ApiKey> pageResponse = PageResponse.<ApiKey>builder()
-                    .content(apiKeyPage.getContent())
+            List<ApiKeyResponse> responses = apiKeyPage.getContent().stream()
+                    .map(this::convertToResponse)
+                    .collect(Collectors.toList());
+            
+            PageResponse<ApiKeyResponse> pageResponse = PageResponse.<ApiKeyResponse>builder()
+                    .content(responses)
+                    .pageNumber(page)
+                    .pageSize(size)
                     .totalElements(apiKeyPage.getTotalElements())
                     .totalPages(apiKeyPage.getTotalPages())
-                    .pageNumber(pageable.getPageNumber())
-                    .pageSize(pageable.getPageSize())
                     .build();
             
-            return ResponseEntity.ok(ApiResponse.success(pageResponse));
-            
+            return ResponseEntity.ok(ApiResponse.success(pageResponse, 
+                String.format("API 키 %d개를 조회했습니다.", responses.size())));
+                
         } catch (Exception e) {
-            log.error("모든 API 키 조회 실패: {}", e.getMessage());
-            return ResponseEntity.badRequest()
-                    .body(ApiResponse.error("모든 API 키 조회 실패: " + e.getMessage()));
+            log.error("Failed to get all API keys: {}", e.getMessage(), e);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body(ApiResponse.error("API 키 목록 조회에 실패했습니다: " + e.getMessage()));
         }
     }
 
@@ -247,6 +247,28 @@ public class ApiKeyController {
                 .expiresAt(request.getExpiresAt())
                 .description(request.getDescription())
                 .requestedApis(request.getRequestedApis())
+                .build();
+    }
+
+    private ApiKeyResponse convertToResponse(ApiKey apiKey) {
+        return ApiKeyResponse.builder()
+                .id(apiKey.getId())
+                .organizationName(apiKey.getOrganizationName())
+                .organizationCode(apiKey.getOrganizationCode())
+                .contactEmail(apiKey.getContactEmail())
+                .contactPhone(apiKey.getContactPhone())
+                .apiServiceName(apiKey.getApiServiceName())
+                .apiServiceUrl(apiKey.getApiServiceUrl())
+                .apiKey(apiKey.getApiKey())
+                .secretKey(apiKey.getSecretKey())
+                .dailyLimit(apiKey.getDailyLimit())
+                .monthlyLimit(apiKey.getMonthlyLimit())
+                .expiresAt(apiKey.getExpiresAt())
+                .description(apiKey.getDescription())
+                .requestedApis(apiKey.getRequestedApis())
+                .status(apiKey.getStatus())
+                .createdAt(apiKey.getCreatedAt())
+                .updatedAt(apiKey.getUpdatedAt())
                 .build();
     }
 

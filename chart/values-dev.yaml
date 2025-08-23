@@ -1,0 +1,117 @@
+# Development environment values for API Management Service
+
+global:
+  environment: dev
+  clusterDomain: cluster.local
+
+# Reduced resources for development
+replicaCount: 1
+
+# Development image
+image:
+  repository: your-registry/api-management-service
+  tag: "dev-latest"
+  pullPolicy: Always
+
+# Disable autoscaling in development
+hpa:
+  enabled: false
+
+# Disable ingress in development (use port-forward instead)
+ingress:
+  enabled: false
+
+# Reduced resource limits for development
+resources:
+  requests:
+    cpu: 200m
+    memory: 512Mi
+  limits:
+    cpu: 1000m
+    memory: 2Gi
+
+# Development environment variables
+env:
+  SPRING_PROFILES_ACTIVE: "dev"
+  SERVER_PORT: "8080"
+  
+  # Local development services
+  DB_URL: "jdbc:mysql://localhost:3306/api_management_service_db?allowPublicKeyRetrieval=true&useSSL=false&serverTimezone=UTC&characterEncoding=UTF-8"
+  DB_USERNAME: "root"
+  DB_PASSWORD: ""
+  
+  REDIS_HOST: "localhost"
+  REDIS_PORT: "6379"
+  
+  KAFKA_BOOTSTRAP_SERVERS: "localhost:9092"
+  
+  # Development Auth0
+  AUTH0_ISSUER_URI: "https://dev-your-domain.auth0.com/"
+  AUTH0_AUDIENCE: "https://api.dev.yourservice.com"
+  
+  # Development Gemini AI
+  GEMINI_API_KEY: ""
+  GEMINI_API_URL: "https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent"
+  
+  # Development AWS
+  AWS_REGION: "ap-northeast-2"
+  
+  # Disable ELK in development
+  ELK_ENABLED: "false"
+
+# Development ConfigMap
+configMap:
+  enabled: true
+  data:
+    application.yml: |
+      spring:
+        application:
+          name: apimanagement
+        profiles:
+          active: ${SPRING_PROFILES_ACTIVE:dev}
+        jpa:
+          hibernate:
+            ddl-auto: create-drop
+            show-sql: true
+        kafka:
+          bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS}
+        redis:
+          host: ${REDIS_HOST}
+          port: ${REDIS_PORT}
+      management:
+        endpoints:
+          web:
+            exposure:
+              include: health,info,prometheus,metrics,loggers
+        endpoint:
+          health:
+            show-details: always
+      logging:
+        level:
+          org.example.apimanagement: DEBUG
+          org.springframework.security: DEBUG
+
+# Development Secret
+secret:
+  enabled: true
+  data:
+    DB_PASSWORD: "1234"
+    GEMINI_API_KEY: ""
+    AUTH0_CLIENT_SECRET: ""
+
+# Disable network policy in development
+networkPolicy:
+  enabled: false
+
+# Disable service monitor in development
+serviceMonitor:
+  enabled: false
+
+# Disable pod disruption budget in development
+podDisruptionBudget:
+  enabled: false
+
+# Development pod annotations
+podAnnotations:
+  dev-environment: "true"
+  debug-mode: "enabled"

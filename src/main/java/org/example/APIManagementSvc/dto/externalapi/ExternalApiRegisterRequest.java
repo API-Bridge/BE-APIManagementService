@@ -13,7 +13,7 @@ import java.util.List;
 
 /**
  * External API 등록 요청 DTO
- * 기존 API를 시스템에 등록하기 위한 입력 데이터
+ * API 정보, 파라미터, 토큰을 한 번에 등록하기 위한 통합 입력 데이터
  */
 @Data
 @Builder
@@ -37,11 +37,9 @@ public class ExternalApiRegisterRequest {
     private String apiOwner;
     
     /** API 분류 도메인 */
-    @NotNull(message = "API 도메인은 필수입니다")
     private ApiDomain apiDomain;
     
     /** API 세부분류용 키워드 */
-    @NotNull(message = "API 키워드는 필수입니다")
     private ApiKeyword apiKeyword;
     
     /** API의 HTTP 메소드 */
@@ -53,5 +51,14 @@ public class ExternalApiRegisterRequest {
     
     /** API 파라미터 목록 */
     private List<ApiParameterRegisterRequest> parameters;
+    
+    /** API 토큰 (선택사항) */
+    private String apiToken;
+    
+    /** 자동 토큰 갱신 여부 (기본값: false) */
+    private Boolean autoTokenRefresh = false;
+    
+    /** 토큰 만료 시간 (선택사항, 설정하지 않으면 4시간 후로 자동 설정) */
+    private String tokenExpiresAt;
 }
 

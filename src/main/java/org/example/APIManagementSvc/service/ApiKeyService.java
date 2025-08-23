@@ -129,19 +129,11 @@ public class ApiKeyService {
     }
 
     /**
-     * 기관명으로 API 키 조회
+     * 조직명으로 API 키 목록 조회
      */
-    @Transactional(readOnly = true)
     public List<ApiKey> getApiKeysByOrganization(String organizationName) {
+        log.info("Getting API keys by organization: {}", organizationName);
         return apiKeyRepository.findByOrganizationNameAndDeletedFalse(organizationName);
-    }
-
-    /**
-     * API 서비스명으로 API 키 조회
-     */
-    @Transactional(readOnly = true)
-    public List<ApiKey> getApiKeysByService(String apiServiceName) {
-        return apiKeyRepository.findByApiServiceNameAndDeletedFalse(apiServiceName);
     }
 
     /**
@@ -161,10 +153,10 @@ public class ApiKeyService {
     }
 
     /**
-     * API 키 페이징 조회
+     * 모든 API 키 조회 (페이지네이션)
      */
-    @Transactional(readOnly = true)
-    public Page<ApiKey> getApiKeysWithPaging(Pageable pageable) {
+    public Page<ApiKey> getAllApiKeys(Pageable pageable) {
+        log.info("Getting all API keys with pagination: page {}, size {}", pageable.getPageNumber(), pageable.getPageSize());
         return apiKeyRepository.findByDeletedFalse(pageable);
     }
 

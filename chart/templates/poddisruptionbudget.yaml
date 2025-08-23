@@ -1,0 +1,15 @@
+{{- if .Values.podDisruptionBudget.enabled }}
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: {{ include "api-management-service.podDisruptionBudgetName" . }}
+  labels:
+    {{- include "api-management-service.labels" . | nindent 4 }}
+    app.kubernetes.io/component: api-management
+    app.kubernetes.io/part-of: microservices
+spec:
+  minAvailable: {{ .Values.podDisruptionBudget.minAvailable }}
+  selector:
+    matchLabels:
+      {{- include "api-management-service.selectorLabels" . | nindent 6 }}
+{{- end }}

@@ -17,6 +17,7 @@ import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
 import org.springframework.http.MediaType;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.web.servlet.MockMvc;
@@ -31,6 +32,7 @@ import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
+import static org.hamcrest.Matchers.hasSize;
 
 @SpringBootTest
 @AutoConfigureMockMvc
@@ -151,55 +153,39 @@ class ApiKeyControllerTest {
     }
 
     @Test
-    @DisplayName("조직별 API 키 조회")
+    @DisplayName("조직별 API 키 조회 성공")
     void getApiKeysByOrganization_Success() throws Exception {
         // given
-        List<ApiKey> apiKeys = Arrays.asList(testApiKey, testApiKey2);
-        when(apiKeyService.getApiKeysByOrganization("테스트 조직")).thenReturn(apiKeys);
-
-        // when & then
-        mockMvc.perform(get("/api-keys/organization/테스트 조직"))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.success").value(true))
-                .andExpect(jsonPath("$.data").isArray())
-                .andExpect(jsonPath("$.data.length()").value(2));
-    }
-
-    @Test
-    @DisplayName("서비스별 API 키 조회")
-    void getApiKeysByService_Success() throws Exception {
-        // given
+        String organizationName = "테스트 조직";
         List<ApiKey> apiKeys = Arrays.asList(testApiKey);
-        when(apiKeyService.getApiKeysByService("TEST_API")).thenReturn(apiKeys);
+        when(apiKeyService.getApiKeysByOrganization(organizationName)).thenReturn(apiKeys);
 
         // when & then
-        mockMvc.perform(get("/api-keys/service/TEST_API"))
+        mockMvc.perform(get("/api-keys/organization/{organizationName}", organizationName))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.success").value(true))
                 .andExpect(jsonPath("$.data").isArray())
-                .andExpect(jsonPath("$.data.length()").value(1));
+                .andExpect(jsonPath("$.data", hasSize(1)))
+                .andExpect(jsonPath("$.data[0].organizationName").value(organizationName));
     }
 
     @Test
-    @DisplayName("페이지네이션으로 API 키 목록 조회")
-    void getAllApiKeys_WithPagination_Success() throws Exception {
+    @DisplayName("모든 API 키 조회 (페이지네이션) 성공")
+    void getAllApiKeys_Success() throws Exception {
         // given
-        Page<ApiKey> apiKeyPage = new PageImpl<>(
-                Arrays.asList(testApiKey, testApiKey2),
-                PageRequest.of(0, 10),
-                2
-        );
-        when(apiKeyService.getApiKeysWithPaging(any())).thenReturn(apiKeyPage);
+        Pageable pageable = PageRequest.of(0, 20);
+        Page<ApiKey> apiKeyPage = new PageImpl<>(Arrays.asList(testApiKey), pageable, 1);
+        when(apiKeyService.getAllApiKeys(any(Pageable.class))).thenReturn(apiKeyPage);
 
         // when & then
         mockMvc.perform(get("/api-keys")
                         .param("page", "0")
-                        .param("size", "10"))
+                        .param("size", "20"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.success").value(true))
                 .andExpect(jsonPath("$.data.content").isArray())
-                .andExpect(jsonPath("$.data.content.length()").value(2))
-                .andExpect(jsonPath("$.data.totalElements").value(2));
+                .andExpect(jsonPath("$.data.content", hasSize(1)))
+                .andExpect(jsonPath("$.data.totalElements").value(1));
     }
 
     @Test

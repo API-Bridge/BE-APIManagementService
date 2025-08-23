@@ -22,6 +22,8 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
+import java.util.Map;
+import java.util.Optional;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
@@ -51,50 +53,14 @@ public class ExternalApiController {
     private final ApiManagementService apiManagementService;
 
     /**
-     * 새로운 External API 등록
-     * Rate Limit: 1시간에 최대 50회 (관리자 작업)
-     */
-    @PostMapping
-    @RateLimit(value = 50, timeUnit = TimeUnit.HOURS, keyType = RateLimit.KeyType.IP_ADDRESS)
-    public ResponseEntity<ApiResponse<ExternalApiResponse>> registerApi(
-            @Valid @RequestBody ExternalApiRegisterRequest request) {
-        log.info("Registering new API: {}", request.getApiName());
-        
-        try {
-            // DTO를 Entity로 변환
-            ExternalApi api = convertToEntity(request);
-            
-            // 파라미터 변환
-            List<ApiParameter> parameters = request.getParameters() != null ? 
-                request.getParameters().stream()
-                    .map(param -> convertToParameterEntity(param, api.getApiId()))
-                    .collect(Collectors.toList()) : null;
-            
-            // API와 파라미터 함께 등록
-            ExternalApi registeredApi = apiManagementService.registerApiWithParameters(api, parameters);
-            
-            // Entity를 Response DTO로 변환
-            ExternalApiResponse response = convertToResponse(registeredApi);
-            
-            return ResponseEntity.status(HttpStatus.CREATED)
-                    .body(ApiResponse.success(response, "API가 성공적으로 등록되었습니다."));
-                    
-        } catch (Exception e) {
-            log.error("Failed to register API: {}", e.getMessage(), e);
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                    .body(ApiResponse.error("API 등록에 실패했습니다: " + e.getMessage()));
-        }
-    }
-
-    /**
-     * API 상세 조회
+     * API 상세 조회 (ID 기반)
      * Rate Limit: 1시간에 최대 1000회 (일반 사용자)
-     * GET /api/v1/external-apis/{apiId}
+     * GET /api/v1/external-apis/detail/{apiId}
      */
-    @GetMapping("/{apiId}")
+    @GetMapping("/detail/{apiId}")
     @RateLimit(value = 1000, timeUnit = TimeUnit.HOURS, keyType = RateLimit.KeyType.IP_ADDRESS)
-    public ResponseEntity<ApiResponse<Object>> getApiDetail(@PathVariable String apiId) {
-        log.info("Getting API detail: {}", apiId);
+    public ResponseEntity<ApiResponse<Object>> getApiDetailById(@PathVariable String apiId) {
+        log.info("Getting API detail by ID: {}", apiId);
         
         try {
             // API와 파라미터 함께 조회
@@ -114,13 +80,43 @@ public class ExternalApiController {
     }
 
     /**
+     * API 상세 조회 (이름 기반)
+     * Rate Limit: 1시간에 최대 1000회 (일반 사용자)
+     * GET /api/v1/external-apis/detail/name/{apiName}
+     */
+    @GetMapping("/detail/name/{apiName}")
+    @RateLimit(value = 1000, timeUnit = TimeUnit.HOURS, keyType = RateLimit.KeyType.IP_ADDRESS)
+    public ResponseEntity<ApiResponse<Object>> getApiDetailByName(@PathVariable String apiName) {
+        log.info("Getting API detail by name: {}", apiName);
+        
+        try {
+            // API 이름으로 조회
+            Optional<ExternalApi> apiOpt = externalApiService.getApiByName(apiName);
+            if (apiOpt.isEmpty()) {
+                return ResponseEntity.status(HttpStatus.NOT_FOUND)
+                        .body(ApiResponse.error("API를 찾을 수 없습니다: " + apiName));
+            }
+            
+            // API와 파라미터 함께 조회
+            Object response = apiManagementService.getApiWithParameters(apiOpt.get().getApiId());
+            
+            return ResponseEntity.ok(ApiResponse.success(response, "API 상세정보를 성공적으로 조회했습니다."));
+            
+        } catch (Exception e) {
+            log.error("Failed to get API detail by name: {}", e.getMessage(), e);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body(ApiResponse.error("API 조회에 실패했습니다: " + e.getMessage()));
+        }
+    }
+
+    /**
      * API 목록 조회 (페이징)
      * Rate Limit: 1시간에 최대 1000회 (일반 사용자)
-     * GET /api/v1/external-apis
+     * GET /api/v1/external-apis/list
      */
-    @GetMapping
+    @GetMapping("/list")
     @RateLimit(value = 1000, timeUnit = TimeUnit.HOURS, keyType = RateLimit.KeyType.IP_ADDRESS)
-    public ResponseEntity<ApiResponse<PageResponse<ExternalApiResponse>>> getApis(
+    public ResponseEntity<ApiResponse<PageResponse<ExternalApiResponse>>> getApiList(
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "10") int size,
             @RequestParam(defaultValue = "createdAt") String sort,
@@ -158,11 +154,85 @@ public class ExternalApiController {
     }
 
     /**
+     * API 검색 (통합 검색)
+     * 도메인, 키워드, 검색어를 조합하여 API를 검색합니다.
+     * Rate Limit: 1시간에 최대 1000회 (일반 사용자)
+     * GET /api/v1/external-apis/search
+     */
+    @GetMapping("/search")
+    @RateLimit(value = 1000, timeUnit = TimeUnit.HOURS, keyType = RateLimit.KeyType.IP_ADDRESS)
+    public ResponseEntity<ApiResponse<List<ApiManagementService.ApiWithParameters>>> searchApis(
+            @RequestParam(required = false) String domain,
+            @RequestParam(required = false) String keyword,
+            @RequestParam(required = false) String searchTerm) {
+        
+        log.info("Searching APIs with domain: {}, keyword: {}, searchTerm: {}", domain, keyword, searchTerm);
+        
+        try {
+            // 검색 조건이 하나도 없는 경우 에러
+            if ((domain == null || domain.trim().isEmpty()) && 
+                (keyword == null || keyword.trim().isEmpty()) && 
+                (searchTerm == null || searchTerm.trim().isEmpty())) {
+                return ResponseEntity.badRequest()
+                        .body(ApiResponse.error("검색 조건을 하나 이상 입력해주세요. (domain, keyword, searchTerm 중 하나)"));
+            }
+            
+            // 통합 검색 수행
+            var searchResults = apiManagementService.searchApisWithParameters(domain, keyword, searchTerm);
+            
+            String message = String.format("검색 결과 %d개를 찾았습니다.", searchResults.size());
+            if (domain != null) message += " (도메인: " + domain + ")";
+            if (keyword != null) message += " (키워드: " + keyword + ")";
+            if (searchTerm != null) message += " (검색어: " + searchTerm + ")";
+            
+            return ResponseEntity.ok(ApiResponse.success(searchResults, message));
+            
+        } catch (IllegalArgumentException e) {
+            log.warn("Invalid search parameters: {}", e.getMessage());
+            return ResponseEntity.badRequest()
+                    .body(ApiResponse.error("잘못된 검색 파라미터입니다: " + e.getMessage()));
+        } catch (Exception e) {
+            log.error("Failed to search APIs: {}", e.getMessage(), e);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body(ApiResponse.error("API 검색에 실패했습니다: " + e.getMessage()));
+        }
+    }
+
+    /**
+     * API 등록
+     * Rate Limit: 1시간에 최대 50회 (관리자 작업)
+     * POST /api/v1/external-apis/register
+     */
+    @PostMapping("/register")
+    @RateLimit(value = 50, timeUnit = TimeUnit.HOURS, keyType = RateLimit.KeyType.IP_ADDRESS)
+    public ResponseEntity<ApiResponse<ExternalApiResponse>> registerApi(
+            @Valid @RequestBody ExternalApiRegisterRequest request) {
+        
+        log.info("Registering new API: {}", request.getApiName());
+        
+        try {
+            // API 등록 (파라미터와 인증 정보 포함)
+            ExternalApi registeredApi = apiManagementService.registerApiWithParametersAndAuth(request);
+            
+            // Entity를 Response DTO로 변환
+            ExternalApiResponse response = convertToResponse(registeredApi);
+            
+            return ResponseEntity.status(HttpStatus.CREATED)
+                    .body(ApiResponse.success(response, "API가 성공적으로 등록되었습니다."));
+                    
+        } catch (Exception e) {
+            log.error("Failed to register API: {}", e.getMessage(), e);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body(ApiResponse.error("API 등록에 실패했습니다: " + e.getMessage()));
+        }
+    }
+
+    /**
      * API 수정
      * Rate Limit: 1시간에 최대 50회 (관리자 작업)
-     * PUT /api/v1/external-apis/{apiId}
+     * PUT /api/v1/external-apis/update/{apiId}
      */
-    @PutMapping("/{apiId}")
+    @PutMapping("/update/{apiId}")
     @RateLimit(value = 50, timeUnit = TimeUnit.HOURS, keyType = RateLimit.KeyType.IP_ADDRESS)
     public ResponseEntity<ApiResponse<ExternalApiResponse>> updateApi(
             @PathVariable String apiId,
@@ -197,20 +267,18 @@ public class ExternalApiController {
     }
 
     /**
-     * API 삭제
-     * Rate Limit: 1시간에 최대 20회 (관리자 작업)
-     * DELETE /api/v1/external-apis/{apiId}
+     * API 삭제 (소프트 삭제)
+     * Rate Limit: 1시간에 최대 50회 (관리자 작업)
+     * DELETE /api/v1/external-apis/delete/{apiId}
      */
-    @DeleteMapping("/{apiId}")
-    @RateLimit(value = 20, timeUnit = TimeUnit.HOURS, keyType = RateLimit.KeyType.IP_ADDRESS)
-    public ResponseEntity<ApiResponse<Void>> deleteApi(@PathVariable String apiId) {
+    @DeleteMapping("/delete/{apiId}")
+    @RateLimit(value = 50, timeUnit = TimeUnit.HOURS, keyType = RateLimit.KeyType.IP_ADDRESS)
+    public ResponseEntity<ApiResponse<String>> deleteApi(@PathVariable String apiId) {
         log.info("Deleting API: {}", apiId);
         
         try {
-            // API와 파라미터 함께 삭제
-            apiManagementService.deleteApiWithParameters(apiId);
-            
-            return ResponseEntity.ok(ApiResponse.success(null, "API가 성공적으로 삭제되었습니다."));
+            apiManagementService.deleteApi(apiId);
+            return ResponseEntity.ok(ApiResponse.success("API가 성공적으로 삭제되었습니다.", "API가 성공적으로 삭제되었습니다."));
             
         } catch (IllegalArgumentException e) {
             log.warn("API not found: {}", apiId);
@@ -224,102 +292,165 @@ public class ExternalApiController {
     }
 
     /**
-     * 도메인별 API 조회
-     * Rate Limit: 1시간에 최대 1000회 (일반 사용자)
-     * GET /api/v1/external-apis/domain/{domain}
+     * API 하드 삭제 (완전 삭제)
+     * Rate Limit: 1시간에 최대 10회 (관리자 작업)
+     * DELETE /api/v1/external-apis/delete/{apiId}/hard
      */
-    @GetMapping("/domain/{domain}")
-    @RateLimit(value = 1000, timeUnit = TimeUnit.HOURS, keyType = RateLimit.KeyType.IP_ADDRESS)
-    public ResponseEntity<ApiResponse<List<ExternalApiResponse>>> getApisByDomain(
-            @PathVariable ApiDomain domain) {
-        
-        log.info("Getting APIs by domain: {}", domain);
+    @DeleteMapping("/delete/{apiId}/hard")
+    @RateLimit(value = 10, timeUnit = TimeUnit.HOURS, keyType = RateLimit.KeyType.IP_ADDRESS)
+    public ResponseEntity<ApiResponse<String>> hardDeleteApi(@PathVariable String apiId) {
+        log.info("Hard deleting API: {}", apiId);
         
         try {
-            // 도메인별 API 조회
-            List<ExternalApi> apis = externalApiService.getApisByDomain(domain);
+            apiManagementService.hardDeleteApi(apiId);
+            return ResponseEntity.ok(ApiResponse.success("API가 완전히 삭제되었습니다.", "API가 완전히 삭제되었습니다."));
             
-            // Entity를 Response DTO로 변환
-            List<ExternalApiResponse> responses = apis.stream()
-                    .map(this::convertToResponse)
-                    .collect(Collectors.toList());
-            
-            return ResponseEntity.ok(ApiResponse.success(responses, 
-                    String.format("%s 도메인에서 %d개의 API를 찾았습니다.", domain, responses.size())));
-                    
+        } catch (IllegalArgumentException e) {
+            log.warn("API not found: {}", apiId);
+            return ResponseEntity.status(HttpStatus.NOT_FOUND)
+                    .body(ApiResponse.error("API를 찾을 수 없습니다: " + apiId));
         } catch (Exception e) {
-            log.error("Failed to get APIs by domain: {}", e.getMessage(), e);
+            log.error("Failed to hard delete API: {}", e.getMessage(), e);
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                    .body(ApiResponse.error("도메인별 API 조회에 실패했습니다: " + e.getMessage()));
+                    .body(ApiResponse.error("API 완전 삭제에 실패했습니다: " + e.getMessage()));
         }
     }
 
     /**
-     * 키워드별 API 조회
-     * Rate Limit: 1시간에 최대 1000회 (일반 사용자)
-     * GET /api/v1/external-apis/keyword/{keyword}
+     * API 효과성 업데이트
+     * Rate Limit: 1시간에 최대 100회 (관리자 작업)
+     * PATCH /api/v1/external-apis/update/{apiId}/effectiveness
      */
-    @GetMapping("/keyword/{keyword}")
-    @RateLimit(value = 1000, timeUnit = TimeUnit.HOURS, keyType = RateLimit.KeyType.IP_ADDRESS)
-    public ResponseEntity<ApiResponse<List<ExternalApiResponse>>> getApisByKeyword(
-            @PathVariable ApiKeyword keyword) {
+    @PatchMapping("/update/{apiId}/effectiveness")
+    @RateLimit(value = 100, timeUnit = TimeUnit.HOURS, keyType = RateLimit.KeyType.IP_ADDRESS)
+    public ResponseEntity<ApiResponse<ExternalApiResponse>> updateApiEffectiveness(
+            @PathVariable String apiId,
+            @RequestBody Map<String, Boolean> request) {
         
-        log.info("Getting APIs by keyword: {}", keyword);
+        log.info("Updating API effectiveness: {} to {}", apiId, request.get("apiEffectiveness"));
         
         try {
-            // 키워드별 API 조회
-            List<ExternalApi> apis = externalApiService.getApisByKeyword(keyword);
+            Boolean apiEffectiveness = request.get("apiEffectiveness");
+            if (apiEffectiveness == null) {
+                return ResponseEntity.badRequest()
+                        .body(ApiResponse.error("apiEffectiveness 값이 필요합니다."));
+            }
             
-            // Entity를 Response DTO로 변환
-            List<ExternalApiResponse> responses = apis.stream()
-                    .map(this::convertToResponse)
-                    .collect(Collectors.toList());
+            ExternalApi updatedApi = externalApiService.updateApiEffectiveness(apiId, apiEffectiveness);
+            ExternalApiResponse response = convertToResponse(updatedApi);
             
-            return ResponseEntity.ok(ApiResponse.success(responses, 
-                    String.format("%s 키워드에서 %d개의 API를 찾았습니다.", keyword.getDisplayName(), responses.size())));
-                    
+            return ResponseEntity.ok(ApiResponse.success(response, "API 효과성이 성공적으로 업데이트되었습니다."));
+            
+        } catch (IllegalArgumentException e) {
+            log.warn("API not found: {}", apiId);
+            return ResponseEntity.status(HttpStatus.NOT_FOUND)
+                    .body(ApiResponse.error("API를 찾을 수 없습니다: " + apiId));
         } catch (Exception e) {
-            log.error("Failed to get APIs by keyword: {}", e.getMessage(), e);
+            log.error("Failed to update API effectiveness: {}", e.getMessage(), e);
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                    .body(ApiResponse.error("키워드별 API 조회에 실패했습니다: " + e.getMessage()));
+                    .body(ApiResponse.error("API 효과성 업데이트에 실패했습니다: " + e.getMessage()));
         }
     }
 
     /**
-     * API 통계 조회
-     * Rate Limit: 1시간에 최대 500회 (관리자/분석가)
-     * GET /api/v1/external-apis/statistics
+     * API 키 연결
+     * Rate Limit: 1시간에 최대 50회 (관리자 작업)
+     * POST /api/v1/external-apis/link/{apiId}/api-key
      */
-    @GetMapping("/statistics")
-    @RateLimit(value = 500, timeUnit = TimeUnit.HOURS, keyType = RateLimit.KeyType.IP_ADDRESS)
-    public ResponseEntity<ApiResponse<ApiStatisticsResponse>> getApiStatistics() {
-        log.info("Getting API statistics");
+    @PostMapping("/link/{apiId}/api-key")
+    @RateLimit(value = 50, timeUnit = TimeUnit.HOURS, keyType = RateLimit.KeyType.IP_ADDRESS)
+    public ResponseEntity<ApiResponse<String>> linkApiKey(
+            @PathVariable String apiId,
+            @RequestBody Map<String, String> request) {
+        
+        log.info("Linking API key to API: {}", apiId);
         
         try {
-            var statistics = externalApiService.getApiStatistics();
+            String apiKeyId = request.get("apiKeyId");
+            if (apiKeyId == null || apiKeyId.trim().isEmpty()) {
+                return ResponseEntity.badRequest()
+                        .body(ApiResponse.error("apiKeyId 값이 필요합니다."));
+            }
             
-            return ResponseEntity.ok(ApiResponse.success(statistics, "API 통계를 성공적으로 조회했습니다."));
+            apiManagementService.linkApiKey(apiId, apiKeyId);
+            return ResponseEntity.ok(ApiResponse.success("API 키가 성공적으로 연결되었습니다.", "API 키가 성공적으로 연결되었습니다."));
             
+        } catch (IllegalArgumentException e) {
+            log.warn("Invalid request: {}", e.getMessage());
+            return ResponseEntity.badRequest()
+                    .body(ApiResponse.error("잘못된 요청입니다: " + e.getMessage()));
         } catch (Exception e) {
-            log.error("Failed to get API statistics: {}", e.getMessage(), e);
+            log.error("Failed to link API key: {}", e.getMessage(), e);
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                    .body(ApiResponse.error("API 통계 조회에 실패했습니다: " + e.getMessage()));
+                    .body(ApiResponse.error("API 키 연결에 실패했습니다: " + e.getMessage()));
+        }
+    }
+
+    /**
+     * API 키 연결 해제
+     * Rate Limit: 1시간에 최대 50회 (관리자 작업)
+     * DELETE /api/v1/external-apis/unlink/{apiId}/api-key
+     */
+    @DeleteMapping("/unlink/{apiId}/api-key")
+    @RateLimit(value = 50, timeUnit = TimeUnit.HOURS, keyType = RateLimit.KeyType.IP_ADDRESS)
+    public ResponseEntity<ApiResponse<String>> unlinkApiKey(@PathVariable String apiId) {
+        log.info("Unlinking API key from API: {}", apiId);
+        
+        try {
+            apiManagementService.unlinkApiKey(apiId);
+            return ResponseEntity.ok(ApiResponse.success("API 키 연결이 해제되었습니다.", "API 키 연결이 해제되었습니다."));
+            
+        } catch (IllegalArgumentException e) {
+            log.warn("API not found: {}", apiId);
+            return ResponseEntity.status(HttpStatus.NOT_FOUND)
+                    .body(ApiResponse.error("API를 찾을 수 없습니다: " + apiId));
+        } catch (Exception e) {
+            log.error("Failed to unlink API key: {}", e.getMessage(), e);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body(ApiResponse.error("API 키 연결 해제에 실패했습니다: " + e.getMessage()));
+        }
+    }
+
+    /**
+     * API 복사
+     * Rate Limit: 1시간에 최대 20회 (관리자 작업)
+     * POST /api/v1/external-apis/copy/{apiId}
+     */
+    @PostMapping("/copy/{apiId}")
+    @RateLimit(value = 20, timeUnit = TimeUnit.HOURS, keyType = RateLimit.KeyType.IP_ADDRESS)
+    public ResponseEntity<ApiResponse<ExternalApiResponse>> copyApi(@PathVariable String apiId) {
+        log.info("Copying API: {}", apiId);
+        
+        try {
+            ExternalApi copiedApi = apiManagementService.copyApi(apiId);
+            ExternalApiResponse response = convertToResponse(copiedApi);
+            
+            return ResponseEntity.status(HttpStatus.CREATED)
+                    .body(ApiResponse.success(response, "API가 성공적으로 복사되었습니다."));
+                    
+        } catch (IllegalArgumentException e) {
+            log.warn("API not found: {}", apiId);
+            return ResponseEntity.status(HttpStatus.NOT_FOUND)
+                    .body(ApiResponse.error("API를 찾을 수 없습니다: " + apiId));
+        } catch (Exception e) {
+            log.error("Failed to copy API: {}", e.getMessage(), e);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body(ApiResponse.error("API 복사에 실패했습니다: " + e.getMessage()));
         }
     }
 
     /**
      * API 유효성 검증
-     * Rate Limit: 1시간에 최대 200회 (개발자 도구)
-     * POST /api/v1/external-apis/{apiId}/validate
+     * Rate Limit: 1시간에 최대 100회 (관리자 작업)
+     * POST /api/v1/external-apis/validate/{apiId}
      */
-    @PostMapping("/{apiId}/validate")
-    @RateLimit(value = 200, timeUnit = TimeUnit.HOURS, keyType = RateLimit.KeyType.IP_ADDRESS)
+    @PostMapping("/validate/{apiId}")
+    @RateLimit(value = 100, timeUnit = TimeUnit.HOURS, keyType = RateLimit.KeyType.IP_ADDRESS)
     public ResponseEntity<ApiResponse<Object>> validateApi(@PathVariable String apiId) {
         log.info("Validating API: {}", apiId);
         
         try {
-            var validationResult = apiManagementService.validateApi(apiId);
-            
+            Object validationResult = apiManagementService.validateApi(apiId);
             return ResponseEntity.ok(ApiResponse.success(validationResult, "API 유효성 검증이 완료되었습니다."));
             
         } catch (IllegalArgumentException e) {
@@ -334,35 +465,49 @@ public class ExternalApiController {
     }
 
     /**
-     * API 복사
-     * Rate Limit: 1시간에 최대 50회 (관리자 작업)
-     * POST /api/v1/external-apis/{apiId}/copy
+     * API 통계 조회
+     * Rate Limit: 1시간에 최대 1000회 (일반 사용자)
+     * GET /api/v1/external-apis/statistics
      */
-    @PostMapping("/{apiId}/copy")
-    @RateLimit(value = 50, timeUnit = TimeUnit.HOURS, keyType = RateLimit.KeyType.IP_ADDRESS)
-    public ResponseEntity<ApiResponse<ExternalApiResponse>> copyApi(
-            @PathVariable String apiId,
-            @RequestParam String newName) {
-        
-        log.info("Copying API: {} to {}", apiId, newName);
+    @GetMapping("/statistics")
+    @RateLimit(value = 1000, timeUnit = TimeUnit.HOURS, keyType = RateLimit.KeyType.IP_ADDRESS)
+    public ResponseEntity<ApiResponse<ApiStatisticsResponse>> getApiStatistics() {
+        log.info("Getting API statistics");
         
         try {
-            ExternalApi copiedApi = apiManagementService.copyApi(apiId, newName);
+            ApiStatisticsResponse statistics = externalApiService.getApiStatistics();
+            return ResponseEntity.ok(ApiResponse.success(statistics, "API 통계를 성공적으로 조회했습니다."));
             
-            // Entity를 Response DTO로 변환
-            ExternalApiResponse response = convertToResponse(copiedApi);
-            
-            return ResponseEntity.status(HttpStatus.CREATED)
-                    .body(ApiResponse.success(response, "API가 성공적으로 복사되었습니다."));
-                    
-        } catch (IllegalArgumentException e) {
-            log.warn("API not found: {}", apiId);
-            return ResponseEntity.status(HttpStatus.NOT_FOUND)
-                    .body(ApiResponse.error("API를 찾을 수 없습니다: " + apiId));
         } catch (Exception e) {
-            log.error("Failed to copy API: {}", e.getMessage(), e);
+            log.error("Failed to get API statistics: {}", e.getMessage(), e);
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                    .body(ApiResponse.error("API 복사에 실패했습니다: " + e.getMessage()));
+                    .body(ApiResponse.error("API 통계 조회에 실패했습니다: " + e.getMessage()));
+        }
+    }
+
+    /**
+     * 활성 API 목록 조회
+     * Rate Limit: 1시간에 최대 1000회 (일반 사용자)
+     * GET /api/v1/external-apis/active
+     */
+    @GetMapping("/active")
+    @RateLimit(value = 1000, timeUnit = TimeUnit.HOURS, keyType = RateLimit.KeyType.IP_ADDRESS)
+    public ResponseEntity<ApiResponse<List<ExternalApiResponse>>> getActiveApis() {
+        log.info("Getting active APIs");
+        
+        try {
+            List<ExternalApi> activeApis = externalApiService.getAllActiveApis();
+            List<ExternalApiResponse> responses = activeApis.stream()
+                    .map(this::convertToResponse)
+                    .collect(Collectors.toList());
+            
+            return ResponseEntity.ok(ApiResponse.success(responses, 
+                String.format("활성 API %d개를 조회했습니다.", responses.size())));
+            
+        } catch (Exception e) {
+            log.error("Failed to get active APIs: {}", e.getMessage(), e);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body(ApiResponse.error("활성 API 조회에 실패했습니다: " + e.getMessage()));
         }
     }
 
@@ -383,6 +528,17 @@ public class ExternalApiController {
         api.setApiDescription(request.getApiDescription());
         api.setApiEffectiveness(true);
         api.setDeleted(false);
+        
+        // 토큰 관련 설정
+        if (request.getApiToken() != null && !request.getApiToken().trim().isEmpty()) {
+            api.setApiToken(request.getApiToken().trim());
+        }
+        
+        // 자동 토큰 갱신 설정
+        if (request.getAutoTokenRefresh() != null) {
+            api.setAutoTokenRefresh(request.getAutoTokenRefresh());
+        }
+        
         return api;
     }
 

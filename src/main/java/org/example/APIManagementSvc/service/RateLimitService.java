@@ -51,34 +51,44 @@ public class RateLimitService {
      */
     public boolean isAllowed(String key, int limit, TimeUnit timeUnit) {
         LocalDateTime now = LocalDateTime.now();
-        RateLimitInfo info = rateLimitCache.get(key);
-        
-        // 새로운 키인 경우 초기화
-        if (info == null) {
+        RateLimitInfo info = rateLimitCache.get(key); // 선언은 여기서 한 번만
+
+        // 0 이하 한도인 경우 특별 처리
+        if (limit <= 0) {
+            if (info == null) {
+                // 이전에 이 키에 대한 정보가 없었다면, 새 정보를 0 카운트로 생성 (상태 조회를 위함)
+                info = new RateLimitInfo(now, limit);
+                rateLimitCache.put(key, info);
+            } else {
+                // 정보가 있다면, 시간 경계에 따라 리셋 처리 (카운트는 여전히 증가시키지 않음)
+                LocalDateTime boundary = calculateBoundary(now, timeUnit);
+                if (info.getStartTime().isBefore(boundary)) {
+                    info.reset(now, limit);
+                }
+            }
+            return false; // 0 이하 한도이므로 항상 거부
+        }
+
+        // 정상적인 (limit > 0) Rate Limiting 로직 시작
+        // info가 null이거나, 이전에 limit <= 0으로 설정되어 있던 경우 (info.getLimit() <= 0)
+        // 새로운 RateLimitInfo를 생성하거나 기존 것을 재설정
+        if (info == null || info.getLimit() <= 0 || info.getStartTime().isBefore(calculateBoundary(now, timeUnit))) {
             info = new RateLimitInfo(now, limit);
             rateLimitCache.put(key, info);
+            info.incrementCount(); // 새로운 주기의 첫 번째 호출 또는 첫 호출
             return true;
         }
-        
-        // 시간 단위에 따른 경계 시간 계산
-        LocalDateTime boundary = calculateBoundary(now, timeUnit);
-        
-        // 경계 시간이 지난 경우 카운터 초기화
-        if (info.getStartTime().isBefore(boundary)) {
-            info.reset(now, limit);
+
+        // 현재 카운트가 한도 미만인 경우 허용
+        if (info.getCurrentCount() < limit) {
+            info.incrementCount();
             return true;
-        }
-        
-        // 호출 횟수 제한 확인
-        if (info.getCurrentCount() >= limit) {
-            log.debug("Rate limit exceeded for key: {}, current: {}, limit: {}", 
+        } else {
+            // 한도 초과
+            log.debug("Rate limit exceeded for key: {}, current: {}, limit: {}",
                     key, info.getCurrentCount(), limit);
             return false;
         }
-        
-        // 호출 횟수 증가
-        info.incrementCount();
-        return true;
     }
     
     /**
@@ -89,15 +99,21 @@ public class RateLimitService {
      */
     public RateLimitStatus getRateLimitStatus(String key) {
         RateLimitInfo info = rateLimitCache.get(key);
+        
         if (info == null) {
+            // 해당 키에 대해 isAllowed가 한 번도 호출되지 않은 경우
             return new RateLimitStatus(0, 0, 0, true);
         }
         
+        // isAllowed 로직과 일관되게, 허용 여부는 현재 카운트가 limit보다 작은지 여부로 판단
+        // 단, limit이 0 이하이면 항상 allowed가 false여야 함.
+        boolean allowed = info.getLimit() > 0 && info.getCurrentCount() < info.getLimit();
+
         return new RateLimitStatus(
             info.getCurrentCount(),
             info.getLimit(),
-            info.getLimit() - info.getCurrentCount(),
-            info.getCurrentCount() < info.getLimit()
+            Math.max(0, info.getLimit() - info.getCurrentCount()), // 남은 횟수는 음수가 될 수 없음
+            allowed
         );
     }
     
@@ -148,13 +164,13 @@ public class RateLimitService {
         public RateLimitInfo(LocalDateTime startTime, int limit) {
             this.startTime = startTime;
             this.limit = limit;
-            this.currentCount = 0;
+            this.currentCount = 0; // 초기화 시 0으로 설정
         }
         
         public void reset(LocalDateTime newStartTime, int newLimit) {
             this.startTime = newStartTime;
             this.limit = newLimit;
-            this.currentCount = 0;
+            this.currentCount = 0; // 리셋 시 0으로 설정
         }
         
         public void incrementCount() {

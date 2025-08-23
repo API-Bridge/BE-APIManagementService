@@ -159,56 +159,39 @@ class ApiKeyServiceTest {
     }
 
     @Test
-    @DisplayName("조직별 API 키 조회")
+    @DisplayName("조직별 API 키 조회 성공")
     void getApiKeysByOrganization_Success() {
         // given
-        List<ApiKey> expectedKeys = Arrays.asList(testApiKey);
-        when(apiKeyRepository.findByOrganizationNameAndDeletedFalse("테스트 조직"))
-                .thenReturn(expectedKeys);
+        String organizationName = "테스트 조직";
+        List<ApiKey> expectedApiKeys = Arrays.asList(testApiKey);
+        when(apiKeyRepository.findByOrganizationNameAndDeletedFalse(organizationName))
+                .thenReturn(expectedApiKeys);
 
         // when
-        List<ApiKey> result = apiKeyService.getApiKeysByOrganization("테스트 조직");
-
-        // then
-        assertThat(result).hasSize(1);
-        assertThat(result).allMatch(key -> key.getOrganizationName().equals("테스트 조직"));
-        verify(apiKeyRepository).findByOrganizationNameAndDeletedFalse("테스트 조직");
-    }
-
-    @Test
-    @DisplayName("서비스별 API 키 조회")
-    void getApiKeysByService_Success() {
-        // given
-        List<ApiKey> expectedKeys = Arrays.asList(testApiKey);
-        when(apiKeyRepository.findByApiServiceNameAndDeletedFalse("TEST_API"))
-                .thenReturn(expectedKeys);
-
-        // when
-        List<ApiKey> result = apiKeyService.getApiKeysByService("TEST_API");
-
-        // then
-        assertThat(result).hasSize(1);
-        assertThat(result).allMatch(key -> key.getApiServiceName().equals("TEST_API"));
-        verify(apiKeyRepository).findByApiServiceNameAndDeletedFalse("TEST_API");
-    }
-
-    @Test
-    @DisplayName("페이지네이션으로 API 키 목록 조회")
-    void getAllApiKeys_WithPagination_Success() {
-        // given
-        Pageable pageable = PageRequest.of(0, 10);
-        List<ApiKey> content = Arrays.asList(testApiKey, inactiveApiKey);
-        Page<ApiKey> expectedPage = new PageImpl<>(content, pageable, 2);
-        
-        when(apiKeyRepository.findByDeletedFalse(pageable)).thenReturn(expectedPage);
-
-        // when
-        Page<ApiKey> result = apiKeyService.getApiKeysWithPaging(pageable);
+        List<ApiKey> result = apiKeyService.getApiKeysByOrganization(organizationName);
 
         // then
         assertThat(result).isNotNull();
-        assertThat(result.getContent()).hasSize(2);
-        assertThat(result.getTotalElements()).isEqualTo(2);
+        assertThat(result).hasSize(1);
+        assertThat(result.get(0).getOrganizationName()).isEqualTo(organizationName);
+        verify(apiKeyRepository).findByOrganizationNameAndDeletedFalse(organizationName);
+    }
+
+    @Test
+    @DisplayName("모든 API 키 조회 (페이지네이션) 성공")
+    void getAllApiKeys_Success() {
+        // given
+        Pageable pageable = PageRequest.of(0, 10);
+        Page<ApiKey> expectedPage = new PageImpl<>(Arrays.asList(testApiKey), pageable, 1);
+        when(apiKeyRepository.findByDeletedFalse(pageable)).thenReturn(expectedPage);
+
+        // when
+        Page<ApiKey> result = apiKeyService.getAllApiKeys(pageable);
+
+        // then
+        assertThat(result).isNotNull();
+        assertThat(result.getContent()).hasSize(1);
+        assertThat(result.getTotalElements()).isEqualTo(1);
         verify(apiKeyRepository).findByDeletedFalse(pageable);
     }
 

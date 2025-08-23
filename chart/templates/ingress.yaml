@@ -1,17 +1,26 @@
 {{- if .Values.ingress.enabled -}}
+{{- $fullName := include "api-management-service.fullname" . -}}
+{{- $svcPort := .Values.service.port -}}
+{{- if and .Values.global.clusterDomain .Values.global.environment }}
+{{- $host := printf "%s.%s.%s" $fullName .Values.global.environment .Values.global.clusterDomain }}
+{{- else }}
+{{- $host := (index .Values.ingress.hosts 0).host }}
+{{- end }}
 apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
-  name: {{ include "chart.fullname" . }}
+  name: {{ $fullName }}
   labels:
-    {{- include "chart.labels" . | nindent 4 }}
+    {{- include "api-management-service.labels" . | nindent 4 }}
+    app.kubernetes.io/component: api-management
+    app.kubernetes.io/part-of: microservices
   {{- with .Values.ingress.annotations }}
   annotations:
     {{- toYaml . | nindent 4 }}
   {{- end }}
 spec:
-  {{- with .Values.ingress.className }}
-  ingressClassName: {{ . }}
+  {{- if .Values.ingress.className }}
+  ingressClassName: {{ .Values.ingress.className }}
   {{- end }}
   {{- if .Values.ingress.tls }}
   tls:
@@ -30,14 +39,12 @@ spec:
         paths:
           {{- range .paths }}
           - path: {{ .path }}
-            {{- with .pathType }}
-            pathType: {{ . }}
-            {{- end }}
+            pathType: {{ .pathType }}
             backend:
               service:
-                name: {{ include "chart.fullname" $ }}
+                name: {{ $fullName }}
                 port:
-                  number: {{ $.Values.service.port }}
+                  number: {{ $svcPort }}
           {{- end }}
     {{- end }}
 {{- end }}

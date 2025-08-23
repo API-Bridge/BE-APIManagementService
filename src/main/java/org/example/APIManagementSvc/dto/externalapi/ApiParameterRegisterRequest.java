@@ -32,5 +32,8 @@ public class ApiParameterRegisterRequest {
     
     /** 파라미터의 기본값 */
     private String defaultValue;
+    
+    /** 파라미터 설명 */
+    private String description;
 }
 

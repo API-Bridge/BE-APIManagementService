@@ -8,6 +8,7 @@ import org.example.APIManagementSvc.domain.enums.ApiKeyword;
 import com.fasterxml.jackson.annotation.JsonFormat;
 
 import java.time.LocalDateTime;
+import java.util.UUID;
 
 /**
  * 외부 API 메타데이터 엔티티
@@ -284,5 +285,38 @@ public class ExternalApi {
      */
     public String getSummary() {
         return String.format("%s (%s) - %s", apiName, apiIssuer, apiDomain);
+    }
+    
+    /**
+     * 엔티티 저장 전 자동 설정
+     */
+    @PrePersist
+    protected void onCreate() {
+        if (apiId == null || apiId.trim().isEmpty()) {
+            this.apiId = "api_" + UUID.randomUUID().toString().replace("-", "").substring(0, 16);
+        }
+        if (createdAt == null) {
+            this.createdAt = LocalDateTime.now();
+        }
+        if (updatedAt == null) {
+            this.updatedAt = LocalDateTime.now();
+        }
+        if (deleted == null) {
+            this.deleted = false;
+        }
+        if (apiEffectiveness == null) {
+            this.apiEffectiveness = true;
+        }
+        if (autoTokenRefresh == null) {
+            this.autoTokenRefresh = false;
+        }
+    }
+    
+    /**
+     * 엔티티 업데이트 전 자동 설정
+     */
+    @PreUpdate
+    protected void onUpdate() {
+        this.updatedAt = LocalDateTime.now();
     }
 }

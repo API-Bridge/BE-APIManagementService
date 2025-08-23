@@ -21,3 +21,45 @@
 .idea/
 *.tmproj
 .vscode/
+# OS generated files
+Thumbs.db
+ehthumbs.db
+# Application specific
+*.log
+logs/
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+# Helm specific
+.helmignore
+Chart.lock
+charts/
+# Development files
+README.md
+*.md
+.env
+.env.local
+.env.development
+.env.test
+.env.production
+# Test files
+test/
+tests/
+*_test.go
+*_test.py
+*_test.js
+# Documentation
+docs/
+documentation/
+# CI/CD
+.github/
+.gitlab-ci.yml
+.travis.yml
+.circleci/
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~

@@ -1,0 +1,12 @@
+{{- if .Values.configMap.enabled }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "api-management-service.configMapName" . }}
+  labels:
+    {{- include "api-management-service.labels" . | nindent 4 }}
+    app.kubernetes.io/component: api-management
+    app.kubernetes.io/part-of: microservices
+data:
+  {{- toYaml .Values.configMap.data | nindent 2 }}
+{{- end }}
