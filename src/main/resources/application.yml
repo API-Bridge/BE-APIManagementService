@@ -40,19 +40,18 @@ spring:
         acks: all
         retries: 3
 
-  # Redis 설정  
+
+  # Redis 설정
   redis:
-    lettuce:
-      pool:
-        max-active: 8
-        max-idle: 8
-        min-idle: 0
+    host: ${REDIS_HOST:localhost}
+    port: ${REDIS_PORT:6379}
+    timeout: 2000ms
 
   # 데이터베이스 설정
   datasource:
     url: ${DB_URL:jdbc:mysql://localhost:3306/apimanagement?useSSL=false&serverTimezone=UTC}
     username: ${DB_USERNAME:root}
-    password: ${DB_PASSWORD:password}
+    password: ${DB_PASSWORD:cell4086}
     driver-class-name: com.mysql.cj.jdbc.Driver
     hikari:
       maximum-pool-size: 20
@@ -60,16 +59,6 @@ spring:
       idle-timeout: 300000
       max-lifetime: 1200000
       connection-timeout: 20000
-  data:
-    redis:
-      host: ${REDIS_HOST:localhost}
-      timeout: 2000ms
-      port: ${REDIS_PORT:6379}
-
-# Auth0 설정
-auth0:
-  issuerUri: ${AUTH0_ISSUER_URI:https://dev-your-domain.auth0.com/}
-  audience: ${AUTH0_AUDIENCE:https://api.dev.yourservice.com}
 
 # AWS 설정
 aws:
@@ -164,26 +153,6 @@ springdoc:
   swagger-ui:
     path: /swagger-ui.html
     operationsSorter: method
-
----
-# 개발 환경 설정
-spring:
-  config:
-    activate:
-      on-profile: dev
-  jpa:
-    show-sql: true
-    properties:
-      hibernate:
-        format_sql: true
-  kafka:
-    consumer:
-      group-id: apimanagement-dev-group
-
-logging:
-  level:
-    org.example.apimanagement: DEBUG
-    org.springframework.security: DEBUG
 
 ---
 # 프로덕션 환경 설정
