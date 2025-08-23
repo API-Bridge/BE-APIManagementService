@@ -18,7 +18,7 @@ import jakarta.validation.Valid;
  */
 @Slf4j
 @RestController
-@RequestMapping("/api-registration")
+@RequestMapping("/api/api-registration")
 @RequiredArgsConstructor
 public class ExternalApiRegistrationController {
 

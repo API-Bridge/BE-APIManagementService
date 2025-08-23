@@ -20,7 +20,7 @@ import java.time.Duration;
 /**
  * Redis 캐시 및 세션 저장소 설정 클래스
  * MSA 환경에서 성능 향상을 위한 Redis 기반 캐시 시스템 구성
- * 
+ *
  * 주요 기능:
  * - Redis 연결 팩토리 및 커넥션 풀 설정
  * - RedisTemplate 구성 (JSON 직렬화/역직렬화)
@@ -31,10 +31,10 @@ import java.time.Duration;
 @EnableCaching
 public class RedisConfig {
 
-    @Value("${spring.data.redis.host}")
+    @Value("${spring.redis.host}")
     private String redisHost;
 
-    @Value("${spring.data.redis.port}")
+    @Value("${spring.redis.port}")
     private int redisPort;
 
     @Autowired
@@ -51,13 +51,13 @@ public class RedisConfig {
         RedisTemplate<String, Object> template = new RedisTemplate<>();
         template.setConnectionFactory(connectionFactory);
         template.setKeySerializer(new StringRedisSerializer());
-        
+
         // LocalDateTime 지원을 위한 Jackson 모듈이 포함된 직렬화기 사용
         GenericJackson2JsonRedisSerializer jsonSerializer = new GenericJackson2JsonRedisSerializer(objectMapper);
         template.setValueSerializer(jsonSerializer);
         template.setHashKeySerializer(new StringRedisSerializer());
         template.setHashValueSerializer(jsonSerializer);
-        
+
         return template;
     }
 
