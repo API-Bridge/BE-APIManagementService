@@ -12,7 +12,7 @@ spring:
   datasource:
     url: jdbc:mysql://localhost:3306/api_management_service_db?allowPublicKeyRetrieval=true&useSSL=false&serverTimezone=UTC&characterEncoding=UTF-8
     username: root
-    password: 1234
+    password: cell4086
 
 # Gemini AI 설정
 gemini:
@@ -22,3 +22,5 @@ gemini:
       name: gemini-1.5-flash
     url: https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent
     timeout: 30000
+
+

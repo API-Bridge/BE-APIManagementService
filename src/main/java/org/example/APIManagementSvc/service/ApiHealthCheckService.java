@@ -4,8 +4,6 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.example.APIManagementSvc.domain.Entity.ExternalApi;
 import org.example.APIManagementSvc.dto.cache.ApiHealthStatusDto;
-import org.example.APIManagementSvc.service.ExternalApiService;
-import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
