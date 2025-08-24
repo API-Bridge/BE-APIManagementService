@@ -197,10 +197,10 @@ spring:
     activate:
       on-profile: dev
   # dev 프로필에서 Redis 자동 설정을 비활성화하여 로컬에 Redis 없이도 실행 가능하게 함
-  autoconfigure:
-    exclude:
-      - org.springframework.boot.autoconfigure.data.redis.RedisAutoConfiguration
-      - org.springframework.boot.autoconfigure.data.redis.RedisRepositoriesAutoConfiguration
+#  autoconfigure:
+#    exclude:
+#      - org.springframework.boot.autoconfigure.data.redis.RedisAutoConfiguration
+#      - org.springframework.boot.autoconfigure.data.redis.RedisRepositoriesAutoConfiguration
   jpa:
     show-sql: true
     properties:
