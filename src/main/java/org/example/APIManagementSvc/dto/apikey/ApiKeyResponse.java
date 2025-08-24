@@ -17,7 +17,7 @@ import java.time.LocalDateTime;
 @AllArgsConstructor
 public class ApiKeyResponse {
     
-    private Long id;
+    private String id;
     
     /** 조직명 */
     private String organizationName;

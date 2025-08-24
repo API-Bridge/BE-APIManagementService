@@ -508,92 +508,66 @@ API의 유효성을 검증합니다.
 
 ## 3. API 파라미터 관리 (ApiParameter)
 
-### 3.1 파라미터 등록
-**POST** `/api-parameters/register`
+### 3.1 파라미터 조회
 
-새로운 API 파라미터를 등록합니다.
+#### 3.1.1 특정 파라미터 조회
+**GET** `/external-apis/{apiId}/parameters/{parameterId}`
+
+특정 파라미터의 상세 정보를 조회합니다.
+
+#### 3.1.2 API의 모든 파라미터 조회
+**GET** `/external-apis/{apiId}/parameters`
+
+특정 API의 모든 파라미터를 조회합니다.
+
+#### 3.1.3 필수 파라미터만 조회
+**GET** `/external-apis/{apiId}/parameters/required`
+
+특정 API의 필수 파라미터만 조회합니다.
+
+### 3.2 파라미터 수정 또는 추가
+**PUT** `/external-apis/{apiId}/parameters/{parameterId}`
+
+**기존 파라미터가 있으면 수정, 없으면 새로 추가합니다.**
 
 **Request Body:**
 ```json
 {
-  "apiId": "API_ID",
   "paramName": "city",
   "paramType": "STRING",
-  "required": true,
+  "isRequired": true,
   "defaultValue": "Seoul",
   "description": "도시명"
 }
 ```
 
-### 3.2 API 키 조회
+**동작 방식:**
+- **기존 파라미터 존재**: 파라미터 정보 수정
+- **기존 파라미터 없음**: 새로운 파라미터 생성
 
-#### 3.2.1 조직별 API 키 조회
-- **엔드포인트**: `GET /api-keys/organization/{organizationName}`
-- **설명**: 특정 조직의 모든 API 키를 조회합니다.
-- **응답 예시**:
-```json
-{
-  "success": true,
-  "message": "조직 '통계청'의 API 키 2개를 조회했습니다.",
-  "data": [
-    {
-      "id": 1,
-      "organizationName": "통계청",
-      "organizationCode": "KOSTAT",
-      "contactEmail": "api@kostat.go.kr",
-      "contactPhone": "02-1234-5678",
-      "apiServiceName": "SGIS",
-      "apiServiceUrl": "https://sgisapi.kostat.go.kr",
-      "apiKey": "sk_1234567890abcdef",
-      "secretKey": "secret_abcdef1234567890",
-      "dailyLimit": 1000,
-      "monthlyLimit": 30000,
-      "status": "ACTIVE",
-      "createdAt": "2024-01-15T09:00:00"
-    }
-  ]
-}
-```
+**참고**: 파라미터 등록은 API 등록 시 함께 처리되며, 이 엔드포인트로 추가 파라미터를 생성하거나 기존 파라미터를 수정할 수 있습니다.
 
-#### 3.2.2 모든 API 키 조회 (페이지네이션)
-- **엔드포인트**: `GET /api-keys?page={page}&size={size}`
-- **설명**: 모든 API 키를 페이지네이션으로 조회합니다.
-- **응답 예시**:
-```json
-{
-  "success": true,
-  "message": "API 키 20개를 조회했습니다.",
-  "data": {
-    "content": [
-      {
-        "id": 1,
-        "organizationName": "통계청",
-        "apiServiceName": "SGIS",
-        "status": "ACTIVE",
-        "createdAt": "2024-01-15T09:00:00"
-      }
-    ],
-    "pageNumber": 0,
-    "pageSize": 20,
-    "totalElements": 45,
-    "totalPages": 3
-  }
-}
-```
+### 3.3 파라미터 삭제
 
-### 3.3 파라미터 수정
-**PUT** `/api-parameters/{paramId}`
+#### 3.3.1 파라미터 소프트 삭제
+**DELETE** `/external-apis/{apiId}/parameters/{parameterId}`
 
-파라미터 정보를 수정합니다.
+파라미터를 소프트 삭제합니다.
 
-### 3.4 파라미터 삭제
-**DELETE** `/api-parameters/{paramId}`
+#### 3.3.2 파라미터 하드 삭제
+**DELETE** `/external-apis/{apiId}/parameters/{parameterId}/hard`
 
-파라미터를 삭제합니다.
+파라미터를 완전히 삭제합니다. (복구 불가)
 
 ---
 
 ## 4. API 헬스체크
+
+**자동 스케줄링 헬스체크:**
+- **5분마다**: 활성 API들의 헬스체크 수행
+- **30분마다**: 중요 API들(정부/금융/교통 도메인)의 상세 헬스체크 수행  
+- **매일 새벽 2시**: 전체 API 헬스체크 수행
+- **사용 불가능한 API 목록**: Redis 캐시에 자동 저장 및 2시간 TTL 관리
 
 ### 4.1 API 헬스체크 실행
 **POST** `/api-health/check/{apiId}`
@@ -633,6 +607,88 @@ API의 유효성을 검증합니다.
 ```json
 {
   "apiIds": ["API_ID_1", "API_ID_2", "API_ID_3"]
+}
+```
+
+### 4.5 전체 API 헬스체크 결과 조회 (페이징)
+**GET** `/api-health/health/status/all?page={page}&size={size}`
+
+전체 API의 헬스체크 결과를 페이징하여 조회합니다.
+
+**Query Parameters:**
+- `page` (기본값: 0): 페이지 번호
+- `size` (기본값: 20): 페이지 크기
+
+**Response:**
+```json
+{
+  "success": true,
+  "data": {
+    "content": [
+      {
+        "apiId": "API_ID_1",
+        "status": "HEALTHY",
+        "responseTime": 150,
+        "checkedAt": "2025-01-01T00:00:00"
+      }
+    ],
+    "page": 0,
+    "size": 20,
+    "totalElements": 100,
+    "totalPages": 5
+  }
+}
+```
+
+### 4.6 사용 불가능한 API 목록 조회
+**GET** `/api-health/health/unavailable`
+
+사용 불가능한 API 목록을 조회합니다.
+
+**Response:**
+```json
+{
+  "success": true,
+  "data": ["API_ID_1", "API_ID_2", "API_ID_3"]
+}
+```
+
+### 4.7 사용 불가능한 API 개수 조회
+**GET** `/api-health/health/unavailable/count`
+
+사용 불가능한 API 개수를 조회합니다.
+
+**Response:**
+```json
+{
+  "success": true,
+  "data": 3
+}
+```
+
+### 4.8 특정 API 사용 불가능 여부 확인
+**GET** `/api-health/health/unavailable/{apiId}`
+
+특정 API가 사용 불가능한지 확인합니다.
+
+**Response:**
+```json
+{
+  "success": true,
+  "data": true
+}
+```
+
+### 4.9 사용 불가능한 API 목록 캐시 강제 갱신
+**POST** `/api-health/health/unavailable/refresh`
+
+사용 불가능한 API 목록 캐시를 강제로 갱신합니다.
+
+**Response:**
+```json
+{
+  "success": true,
+  "data": "사용 불가능한 API 목록 캐시가 성공적으로 갱신되었습니다."
 }
 ```
 

@@ -29,6 +29,11 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.*;
 
+import org.example.APIManagementSvc.dto.externalapi.ExternalApiRegisterRequest;
+import org.example.APIManagementSvc.dto.externalapi.ApiParameterRegisterRequest;
+import org.example.APIManagementSvc.dto.cache.ApiHealthStatusDto;
+import org.example.APIManagementSvc.dto.ai.AiClassificationResponse;
+
 @ExtendWith(MockitoExtension.class)
 @DisplayName("ApiManagementService 테스트")
 class ApiManagementServiceTest {
@@ -241,19 +246,23 @@ class ApiManagementServiceTest {
     }
 
     @Test
-    @DisplayName("API 등록 실패 - AI 분류 실패")
-    void registerApiWithParameters_Failure_AIClassificationFailed() {
+    @DisplayName("API 등록 성공 - AI 분류 실패 시 기본값 사용")
+    void registerApiWithParameters_Success_WithDefaultValuesWhenAIClassificationFailed() {
         // given
         when(aiClassificationService.classifyApi(anyString(), anyString(), anyString(), anyString(), isNull()))
                 .thenThrow(new RuntimeException("AI 분류 실패"));
+        when(externalApiService.registerApi(any(ExternalApi.class))).thenReturn(testApi);
 
-        // when & then
-        assertThatThrownBy(() -> apiManagementService.registerApiWithParameters(testApi, testParameters))
-                .isInstanceOf(RuntimeException.class)
-                .hasMessageContaining("API registration failed");
+        // when
+        ExternalApi result = apiManagementService.registerApiWithParameters(testApi, testParameters);
+
+        // then
+        assertThat(result).isNotNull();
+        assertThat(result.getApiDomain()).isEqualTo(ApiDomain.OTHERS);
+        assertThat(result.getApiKeyword()).isEqualTo(ApiKeyword.API_DOCUMENT);
         
-        verify(externalApiService, never()).registerApi(any(ExternalApi.class));
-        verify(apiParameterService, never()).saveParameter(any(ApiParameter.class));
+        verify(externalApiService).registerApi(any(ExternalApi.class));
+        verify(apiParameterService, times(2)).saveParameter(any(ApiParameter.class));
     }
 
     @Test
@@ -509,8 +518,9 @@ class ApiManagementServiceTest {
         
         List<ExternalApi> apis = Arrays.asList(searchApi);
         
-        // searchApisWithParameters는 내부적으로 repository를 사용하므로
-        // 별도의 mocking이 필요하지 않음
+        // repository mock 설정
+        when(externalApiRepository.findByApiDomainAndApiKeywordAndDeletedFalse(ApiDomain.TECHNOLOGY, ApiKeyword.API_DOCUMENT))
+                .thenReturn(apis);
         when(apiParameterService.getParametersByApiId(searchApi.getApiId())).thenReturn(testParameters);
 
         // when
@@ -520,8 +530,9 @@ class ApiManagementServiceTest {
         assertThat(result).isNotNull();
         assertThat(result).hasSize(1);
         
-        // searchApisWithParameters는 내부적으로 repository를 사용하므로
-        // 별도의 verification이 필요하지 않음
+        // verification
+        verify(externalApiRepository).findByApiDomainAndApiKeywordAndDeletedFalse(ApiDomain.TECHNOLOGY, ApiKeyword.API_DOCUMENT);
+        verify(apiParameterService).getParametersByApiId(searchApi.getApiId());
     }
 
     @Test
@@ -538,8 +549,9 @@ class ApiManagementServiceTest {
         
         List<ExternalApi> apis = Arrays.asList(techApi);
         
-        // searchApisWithParameters는 내부적으로 repository를 사용하므로
-        // 별도의 mocking이 필요하지 않음
+        // repository mock 설정
+        when(externalApiRepository.findByApiDomainAndDeletedFalse(ApiDomain.TECHNOLOGY))
+                .thenReturn(apis);
         when(apiParameterService.getParametersByApiId(techApi.getApiId())).thenReturn(testParameters);
 
         // when
@@ -549,8 +561,9 @@ class ApiManagementServiceTest {
         assertThat(result).isNotNull();
         assertThat(result).hasSize(1);
         
-        // searchApisWithParameters는 내부적으로 repository를 사용하므로
-        // 별도의 verification이 필요하지 않음
+        // verification
+        verify(externalApiRepository).findByApiDomainAndDeletedFalse(ApiDomain.TECHNOLOGY);
+        verify(apiParameterService).getParametersByApiId(techApi.getApiId());
     }
 
     @Test
@@ -567,8 +580,9 @@ class ApiManagementServiceTest {
         
         List<ExternalApi> apis = Arrays.asList(docApi);
         
-        // searchApisWithParameters는 내부적으로 repository를 사용하므로
-        // 별도의 mocking이 필요하지 않음
+        // repository mock 설정
+        when(externalApiRepository.findByApiKeywordAndDeletedFalse(ApiKeyword.API_DOCUMENT))
+                .thenReturn(apis);
         when(apiParameterService.getParametersByApiId(docApi.getApiId())).thenReturn(testParameters);
 
         // when
@@ -578,8 +592,9 @@ class ApiManagementServiceTest {
         assertThat(result).isNotNull();
         assertThat(result).hasSize(1);
         
-        // searchApisWithParameters는 내부적으로 repository를 사용하므로
-        // 별도의 verification이 필요하지 않음
+        // verification
+        verify(externalApiRepository).findByApiKeywordAndDeletedFalse(ApiKeyword.API_DOCUMENT);
+        verify(apiParameterService).getParametersByApiId(docApi.getApiId());
     }
 
     @Test
@@ -625,8 +640,9 @@ class ApiManagementServiceTest {
         
         List<ExternalApi> apis = Arrays.asList(techApi);
         
-        // searchApisWithParameters는 내부적으로 repository를 사용하므로
-        // 별도의 mocking이 필요하지 않음
+        // repository mock 설정
+        when(externalApiRepository.findByApiDomainAndDeletedFalse(ApiDomain.TECHNOLOGY))
+                .thenReturn(apis);
         when(apiParameterService.getParametersByApiId(techApi.getApiId())).thenReturn(testParameters);
 
         // when
@@ -636,8 +652,9 @@ class ApiManagementServiceTest {
         assertThat(result).isNotNull();
         assertThat(result).hasSize(1);
         
-        // searchApisWithParameters는 내부적으로 repository를 사용하므로
-        // 별도의 verification이 필요하지 않음
+        // verification
+        verify(externalApiRepository).findByApiDomainAndDeletedFalse(ApiDomain.TECHNOLOGY);
+        verify(apiParameterService).getParametersByApiId(techApi.getApiId());
     }
 
     @Test
@@ -750,5 +767,133 @@ class ApiManagementServiceTest {
                 .hasMessageContaining("API 키 연결 해제 실패");
         
         verify(externalApiRepository, never()).save(any(ExternalApi.class));
+    }
+
+    @Test
+    @DisplayName("ExternalApiRegisterRequest로 API 등록 성공")
+    void registerApiWithParametersAndAuth_FromRequest_Success() {
+        // given
+        ExternalApiRegisterRequest request = ExternalApiRegisterRequest.builder()
+                .apiName("테스트 API")
+                .apiUrl("https://api.test.com/test")
+                .apiIssuer("테스트 기관")
+                .apiOwner("테스트팀")
+                .httpMethod("GET")
+                .apiDescription("테스트용 API")
+                .parameters(Arrays.asList(
+                        ApiParameterRegisterRequest.builder()
+                                .paramName("city")
+                                .paramType("STRING")
+                                .isRequired(true)
+                                .defaultValue("Seoul")
+                                .description("도시명")
+                                .build(),
+                        ApiParameterRegisterRequest.builder()
+                                .paramName("year")
+                                .paramType("INTEGER")
+                                .isRequired(false)
+                                .defaultValue("2024")
+                                .description("연도")
+                                .build()
+                ))
+                .apiToken("test_token_12345")
+                .autoTokenRefresh(true)
+                .build();
+
+        AiClassification classification = new AiClassification();
+        classification.setClassifiedDomain(ApiDomain.WEATHER);
+        classification.setClassifiedKeyword(ApiKeyword.CURRENT_WEATHER);
+        
+        when(aiClassificationService.classifyApi(anyString(), anyString(), anyString(), anyString(), any()))
+                .thenReturn(classification);
+
+        // testApi에 AI 분류 결과와 토큰을 설정
+        testApi.setApiDomain(ApiDomain.WEATHER);
+        testApi.setApiKeyword(ApiKeyword.CURRENT_WEATHER);
+        testApi.setApiToken("test_token_12345");
+        
+        doReturn(testApi).when(externalApiService).registerApiWithAuth(any(ExternalApi.class), isNull(), anyString());
+
+        when(apiParameterService.saveParameter(any(ApiParameter.class)))
+                .thenReturn(testParameter1)
+                .thenReturn(testParameter2);
+
+        ApiHealthStatusDto healthStatus = ApiHealthStatusDto.builder()
+                .apiId(testApi.getApiId())
+                .status("HEALTHY")
+                .responseTime(100L)
+                .checkedAt(LocalDateTime.now())
+                .build();
+                
+        when(apiHealthCheckService.checkApiHealth(any(ExternalApi.class)))
+                .thenReturn(healthStatus);
+
+        // when
+        ExternalApi result = apiManagementService.registerApiWithParametersAndAuth(request);
+
+        // then
+        assertThat(result).isNotNull();
+        assertThat(result.getApiName()).isEqualTo("테스트 API");
+        assertThat(result.getApiDomain()).isEqualTo(ApiDomain.WEATHER);
+        assertThat(result.getApiKeyword()).isEqualTo(ApiKeyword.CURRENT_WEATHER);
+        assertThat(result.getApiToken()).isEqualTo("test_token_12345");
+        assertThat(result.getAutoTokenRefresh()).isTrue();
+
+        // 파라미터가 올바르게 등록되었는지 확인
+        verify(apiParameterService, times(2)).saveParameter(any(ApiParameter.class));
+        
+        // AI 분류가 호출되었는지 확인
+        verify(aiClassificationService).classifyApi(anyString(), anyString(), anyString(), anyString(), any());
+        
+        // 헬스체크가 호출되었는지 확인
+        verify(apiHealthCheckService).checkApiHealth(any(ExternalApi.class));
+    }
+
+    @Test
+    @DisplayName("ExternalApiRegisterRequest로 API 등록 실패 - AI 분류 실패")
+    void registerApiWithParametersAndAuth_FromRequest_Failure_AIClassificationFailed() {
+        // given
+        ExternalApiRegisterRequest request = ExternalApiRegisterRequest.builder()
+                .apiName("테스트 API")
+                .apiUrl("https://api.test.com/test")
+                .apiIssuer("테스트 기관")
+                .apiOwner("테스트팀")
+                .httpMethod("GET")
+                .apiDescription("테스트용 API")
+                .parameters(Arrays.asList(
+                        ApiParameterRegisterRequest.builder()
+                                .paramName("city")
+                                .paramType("STRING")
+                                .isRequired(true)
+                                .defaultValue("Seoul")
+                                .description("도시명")
+                                .build()
+                ))
+                .apiToken("test_token_12345")
+                .build();
+
+        // AI 분류 실패 시뮬레이션
+        when(aiClassificationService.classifyApi(anyString(), anyString(), anyString(), anyString(), any()))
+                .thenThrow(new RuntimeException("AI 분류 실패"));
+        
+        // testApi에 기본값 설정
+        testApi.setApiDomain(ApiDomain.OTHERS);
+        testApi.setApiKeyword(ApiKeyword.API_DOCUMENT);
+        
+        // 기본값으로 API 등록 성공
+        when(externalApiService.registerApiWithAuth(any(ExternalApi.class), isNull(), anyString()))
+                .thenReturn(testApi);
+
+        // when
+        ExternalApi result = apiManagementService.registerApiWithParametersAndAuth(request);
+
+        // then
+        assertThat(result).isNotNull();
+        // AI 분류 실패 시 기본값이 설정되었는지 확인
+        assertThat(result.getApiDomain()).isEqualTo(ApiDomain.OTHERS);
+        assertThat(result.getApiKeyword()).isEqualTo(ApiKeyword.API_DOCUMENT);
+        
+        verify(aiClassificationService).classifyApi(anyString(), anyString(), anyString(), anyString(), any());
+        verify(externalApiService).registerApiWithAuth(any(ExternalApi.class), isNull(), anyString());
     }
 }

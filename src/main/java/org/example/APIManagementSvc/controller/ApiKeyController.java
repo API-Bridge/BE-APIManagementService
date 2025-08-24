@@ -252,7 +252,7 @@ public class ApiKeyController {
 
     private ApiKeyResponse convertToResponse(ApiKey apiKey) {
         return ApiKeyResponse.builder()
-                .id(apiKey.getId())
+                .id(apiKey.getKeyId())
                 .organizationName(apiKey.getOrganizationName())
                 .organizationCode(apiKey.getOrganizationCode())
                 .contactEmail(apiKey.getContactEmail())

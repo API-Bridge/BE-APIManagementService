@@ -17,7 +17,8 @@ import java.util.stream.Collectors;
 
 /**
  * API 파라미터 관리 컨트롤러
- * API 파라미터의 등록, 조회, 수정, 삭제 기능 제공
+ * API 파라미터의 조회, 수정, 삭제 기능 제공
+ * (파라미터 등록은 API 등록 시 함께 처리됨)
  */
 @Slf4j
 @RestController
@@ -28,25 +29,8 @@ public class ApiParameterController {
     private final ApiParameterService apiParameterService;
 
     /**
-     * 새로운 API 파라미터 등록
-     * @param apiId API ID
-     * @param request 파라미터 등록 요청 데이터
-     * @return 등록된 파라미터 정보
-     */
-    @PostMapping
-    public ResponseEntity<ApiResponse<ApiParameterResponse>> registerParameter(
-            @PathVariable String apiId,
-            @Valid @RequestBody ApiParameterRegisterRequest request) {
-        log.info("Registering new parameter for API {}: {}", apiId, request.getParamName());
-        
-        ApiParameterResponse response = apiParameterService.saveParameter(request, apiId);
-        return ResponseEntity.status(HttpStatus.CREATED)
-                .body(ApiResponse.success(response, "파라미터가 성공적으로 등록되었습니다."));
-    }
-
-    /**
      * 파라미터 조회 (ID로)
-     * GET /api/v1/external-apis/{apiId}/parameters/{parameterId}
+     * GET /external-apis/{apiId}/parameters/{parameterId}
      */
     @GetMapping("/{parameterId}")
     public ResponseEntity<ApiResponse<ApiParameterResponse>> getParameter(
@@ -81,7 +65,7 @@ public class ApiParameterController {
 
     /**
      * API의 모든 파라미터 조회
-     * GET /api/v1/external-apis/{apiId}/parameters
+     * GET /external-apis/{apiId}/parameters
      */
     @GetMapping
     public ResponseEntity<ApiResponse<List<ApiParameterResponse>>> getParameters(@PathVariable String apiId) {
@@ -105,7 +89,7 @@ public class ApiParameterController {
 
     /**
      * 필수 파라미터만 조회
-     * GET /api/v1/external-apis/{apiId}/parameters/required
+     * GET /external-apis/{apiId}/parameters/required
      */
     @GetMapping("/required")
     public ResponseEntity<ApiResponse<List<ApiParameterResponse>>> getRequiredParameters(@PathVariable String apiId) {
@@ -128,52 +112,67 @@ public class ApiParameterController {
     }
 
     /**
-     * 파라미터 수정
-     * PUT /api/v1/external-apis/{apiId}/parameters/{parameterId}
+     * 파라미터 수정 또는 추가
+     * PUT /external-apis/{apiId}/parameters/{parameterId}
+     * 
+     * 기존 파라미터가 있으면 수정, 없으면 새로 추가
      */
     @PutMapping("/{parameterId}")
-    public ResponseEntity<ApiResponse<ApiParameterResponse>> updateParameter(
+    public ResponseEntity<ApiResponse<ApiParameterResponse>> updateOrCreateParameter(
             @PathVariable String apiId,
             @PathVariable String parameterId,
             @Valid @RequestBody ApiParameterRegisterRequest request) {
         
-        log.info("Updating parameter: {} for API: {}", parameterId, apiId);
+        log.info("Updating or creating parameter: {} for API: {}", parameterId, apiId);
         
         try {
             // 기존 파라미터 조회
             var existingParameter = apiParameterService.getParameterById(parameterId);
             
-            if (existingParameter.isEmpty()) {
-                return ResponseEntity.status(HttpStatus.NOT_FOUND)
-                        .body(ApiResponse.error("파라미터를 찾을 수 없습니다: " + parameterId));
+            ApiParameter resultParameter;
+            
+            if (existingParameter.isPresent()) {
+                // 기존 파라미터가 있으면 수정
+                log.info("Updating existing parameter: {}", parameterId);
+                
+                // API ID 검증
+                if (!apiId.equals(existingParameter.get().getApiId())) {
+                    return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                            .body(ApiResponse.error("API ID가 일치하지 않습니다."));
+                }
+                
+                // 파라미터 수정
+                ApiParameter updateData = convertToEntity(request, apiId);
+                resultParameter = apiParameterService.updateParameter(parameterId, updateData);
+                
+            } else {
+                // 기존 파라미터가 없으면 새로 생성
+                log.info("Creating new parameter with ID: {}", parameterId);
+                
+                // 파라미터 생성
+                ApiParameter newParameter = convertToEntity(request, apiId);
+                newParameter.setParameterId(parameterId);
+                resultParameter = apiParameterService.saveParameter(newParameter);
             }
             
-            // API ID 검증
-            if (!apiId.equals(existingParameter.get().getApiId())) {
-                return ResponseEntity.status(HttpStatus.BAD_REQUEST)
-                        .body(ApiResponse.error("API ID가 일치하지 않습니다."));
-            }
+            ApiParameterResponse response = convertToResponse(resultParameter);
+            String message = existingParameter.isPresent() ? "파라미터가 성공적으로 수정되었습니다." : "파라미터가 성공적으로 추가되었습니다.";
             
-            // 파라미터 수정
-            ApiParameter updateData = convertToEntity(request, apiId);
-            ApiParameter updatedParameter = apiParameterService.updateParameter(parameterId, updateData);
-            
-            ApiParameterResponse response = convertToResponse(updatedParameter);
-            return ResponseEntity.ok(ApiResponse.success(response, "파라미터가 성공적으로 수정되었습니다."));
+            return ResponseEntity.ok(ApiResponse.success(response, message));
             
         } catch (Exception e) {
-            log.error("Failed to update parameter: {}", e.getMessage(), e);
+            log.error("Failed to update or create parameter: {}", e.getMessage(), e);
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                    .body(ApiResponse.error("파라미터 수정에 실패했습니다: " + e.getMessage()));
+                    .body(ApiResponse.error("파라미터 수정/추가에 실패했습니다: " + e.getMessage()));
         }
     }
 
     /**
      * 파라미터 삭제 (Soft Delete)
-     * DELETE /api/v1/external-apis/{apiId}/parameters/{parameterId}
+     * DELETE /external-apis/{apiId}/parameters/{parameterId}
      */
     @DeleteMapping("/{parameterId}")
-    public ResponseEntity<ApiResponse<Void>> deleteParameter(
+    public ResponseEntity<ApiResponse<String>> deleteParameter(
             @PathVariable String apiId,
             @PathVariable String parameterId) {
         
@@ -197,7 +196,7 @@ public class ApiParameterController {
             // 파라미터 삭제
             apiParameterService.deleteParameter(parameterId);
             
-            return ResponseEntity.ok(ApiResponse.success(null, "파라미터가 성공적으로 삭제되었습니다."));
+            return ResponseEntity.ok(ApiResponse.success("파라미터가 성공적으로 삭제되었습니다.", "파라미터가 성공적으로 삭제되었습니다."));
             
         } catch (Exception e) {
             log.error("Failed to delete parameter: {}", e.getMessage(), e);
@@ -207,46 +206,44 @@ public class ApiParameterController {
     }
 
     /**
-     * API의 모든 파라미터 삭제
-     * DELETE /api/v1/external-apis/{apiId}/parameters
+     * 파라미터 하드 삭제 (완전 삭제)
+     * DELETE /external-apis/{apiId}/parameters/{parameterId}/hard
      */
-    @DeleteMapping
-    public ResponseEntity<ApiResponse<Void>> deleteAllParameters(@PathVariable String apiId) {
-        log.info("Deleting all parameters for API: {}", apiId);
+    @DeleteMapping("/{parameterId}/hard")
+    public ResponseEntity<ApiResponse<String>> hardDeleteParameter(
+            @PathVariable String apiId,
+            @PathVariable String parameterId) {
+        
+        log.info("Hard deleting parameter: {} for API: {}", parameterId, apiId);
         
         try {
-            apiParameterService.deleteAllParametersByApiId(apiId);
+            // 기존 파라미터 조회
+            var existingParameter = apiParameterService.getParameterById(parameterId);
             
-            return ResponseEntity.ok(ApiResponse.success(null, "모든 파라미터가 성공적으로 삭제되었습니다."));
+            if (existingParameter.isEmpty()) {
+                return ResponseEntity.status(HttpStatus.NOT_FOUND)
+                        .body(ApiResponse.error("파라미터를 찾을 수 없습니다: " + parameterId));
+            }
+            
+            // API ID 검증
+            if (!apiId.equals(existingParameter.get().getApiId())) {
+                return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                        .body(ApiResponse.error("API ID가 일치하지 않습니다."));
+            }
+            
+            // 파라미터 하드 삭제
+            apiParameterService.hardDeleteParameter(parameterId);
+            
+            return ResponseEntity.ok(ApiResponse.success("파라미터가 완전히 삭제되었습니다.", "파라미터가 완전히 삭제되었습니다."));
             
         } catch (Exception e) {
-            log.error("Failed to delete all parameters: {}", e.getMessage(), e);
+            log.error("Failed to hard delete parameter: {}", e.getMessage(), e);
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                    .body(ApiResponse.error("파라미터 일괄 삭제에 실패했습니다: " + e.getMessage()));
+                    .body(ApiResponse.error("파라미터 완전 삭제에 실패했습니다: " + e.getMessage()));
         }
     }
 
-    /**
-     * 파라미터 통계 조회
-     * GET /api/v1/external-apis/{apiId}/parameters/statistics
-     */
-    @GetMapping("/statistics")
-    public ResponseEntity<ApiResponse<Object>> getParameterStatistics(@PathVariable String apiId) {
-        log.info("Fetching parameter statistics for API: {}", apiId);
-        
-        try {
-            var statistics = apiParameterService.getParameterStatistics(apiId);
-            
-            return ResponseEntity.ok(ApiResponse.success(statistics));
-            
-        } catch (Exception e) {
-            log.error("Failed to fetch parameter statistics: {}", e.getMessage(), e);
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                    .body(ApiResponse.error("파라미터 통계 조회에 실패했습니다: " + e.getMessage()));
-        }
-    }
-
-    // ===== Private Helper Methods =====
+    // === Helper Methods ===
 
     /**
      * CreateRequest를 Entity로 변환
@@ -267,17 +264,15 @@ public class ApiParameterController {
      */
     private ApiParameterResponse convertToResponse(ApiParameter parameter) {
         return ApiParameterResponse.builder()
-
-
+                .parameterId(parameter.getParameterId())
+                .apiId(parameter.getApiId())
                 .paramName(parameter.getParamName())
                 .paramType(parameter.getParamType())
                 .isRequired(parameter.getIsRequired())
                 .defaultValue(parameter.getDefaultValue())
 
-
-
-
-
+                .createdAt(parameter.getCreatedAt())
+                .updatedAt(parameter.getUpdatedAt())
                 .build();
     }
 }

@@ -180,11 +180,33 @@ public class ExternalApiService {
     }
 
     /**
-     * 모든 활성 API 조회
+     * 활성 API 목록 조회 (삭제되지 않은 API)
      */
     public List<ExternalApi> getAllActiveApis() {
         log.debug("Getting all active APIs");
         return externalApiRepository.findByDeletedFalse();
+    }
+
+    /**
+     * 중요 API 목록 조회 (높은 우선순위를 가진 API들)
+     */
+    public List<ExternalApi> getImportantApis() {
+        log.debug("Getting important APIs");
+        // 중요 API 기준: 정부/공공 도메인, 금융 도메인, 또는 높은 사용 빈도를 가진 API
+        List<ExternalApi> allActiveApis = getAllActiveApis();
+        return allActiveApis.stream()
+            .filter(api -> api.getApiDomain() == ApiDomain.GOVERNMENT || 
+                          api.getApiDomain() == ApiDomain.FINANCE || 
+                          api.getApiDomain() == ApiDomain.TRANSPORTATION)
+            .toList();
+    }
+
+    /**
+     * 모든 API 목록 조회 (삭제된 API 포함)
+     */
+    public List<ExternalApi> getAllApis() {
+        log.debug("Getting all APIs (including deleted ones)");
+        return externalApiRepository.findAll();
     }
 
     /**

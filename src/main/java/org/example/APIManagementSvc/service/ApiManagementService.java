@@ -24,6 +24,9 @@ import java.util.List;
 import java.util.UUID;
 import java.util.ArrayList;
 import org.example.APIManagementSvc.domain.Entity.ApiKey;
+import org.example.APIManagementSvc.dto.externalapi.ExternalApiRegisterRequest;
+import org.example.APIManagementSvc.dto.externalapi.ApiParameterRegisterRequest;
+import java.util.stream.Collectors;
 
 /**
  * API 메타데이터 통합 관리 서비스
@@ -45,6 +48,27 @@ public class ApiManagementService {
     private final ApiKeyService apiKeyService;
 
     /**
+     * ExternalApiRegisterRequest를 받아서 API와 파라미터를 함께 등록
+     */
+    @Transactional
+    public ExternalApi registerApiWithParametersAndAuth(ExternalApiRegisterRequest request) {
+        log.info("Registering API from request: {}", request.getApiName());
+        
+        try {
+            // 1. DTO를 Entity로 변환
+            ExternalApi api = convertToEntity(request);
+            List<ApiParameter> parameters = convertToParameters(request.getParameters());
+            
+            // 2. 기존 메서드 호출
+            return registerApiWithParametersAndAuth(api, parameters, null, request.getApiToken());
+            
+        } catch (Exception e) {
+            log.error("Failed to register API from request: {}", e.getMessage(), e);
+            throw new RuntimeException("API registration from request failed: " + e.getMessage(), e);
+        }
+    }
+
+    /**
      * API와 파라미터를 함께 등록 (인증 정보 포함)
      */
     @Transactional
@@ -62,12 +86,25 @@ public class ApiManagementService {
             
             // 2. AI 자동 분류 수행 (도메인이나 키워드가 설정되지 않은 경우)
             if (api.getApiDomain() == null || api.getApiKeyword() == null) {
-                var classification = aiClassificationService.classifyApi(api.getApiId(), api.getApiName(), api.getApiDescription(), api.getApiUrl(), null);
-                if (api.getApiDomain() == null) {
-                    api.setApiDomain(classification.getClassifiedDomain());
-                }
-                if (api.getApiKeyword() == null) {
-                    api.setApiKeyword(classification.getClassifiedKeyword());
+                try {
+                    var classification = aiClassificationService.classifyApi(api.getApiId(), api.getApiName(), api.getApiDescription(), api.getApiUrl(), null);
+                    if (classification != null) {
+                        if (api.getApiDomain() == null && classification.getClassifiedDomain() != null) {
+                            api.setApiDomain(classification.getClassifiedDomain());
+                        }
+                        if (api.getApiKeyword() == null && classification.getClassifiedKeyword() != null) {
+                            api.setApiKeyword(classification.getClassifiedKeyword());
+                        }
+                    }
+                } catch (Exception e) {
+                    log.warn("AI 분류 실패, 기본값 사용: {} - {}", api.getApiName(), e.getMessage());
+                    // AI 분류 실패 시 기본값 설정
+                    if (api.getApiDomain() == null) {
+                        api.setApiDomain(ApiDomain.OTHERS);
+                    }
+                    if (api.getApiKeyword() == null) {
+                        api.setApiKeyword(ApiKeyword.API_DOCUMENT);
+                    }
                 }
             }
             
@@ -116,12 +153,25 @@ public class ApiManagementService {
         try {
             // 1. AI 자동 분류 수행
             if (api.getApiDomain() == null || api.getApiKeyword() == null) {
-                var classification = aiClassificationService.classifyApi(api.getApiId(), api.getApiName(), api.getApiDescription(), api.getApiUrl(), null);
-                if (api.getApiDomain() == null) {
-                    api.setApiDomain(classification.getClassifiedDomain());
-                }
-                if (api.getApiKeyword() == null) {
-                    api.setApiKeyword(classification.getClassifiedKeyword());
+                try {
+                    var classification = aiClassificationService.classifyApi(api.getApiId(), api.getApiName(), api.getApiDescription(), api.getApiUrl(), null);
+                    if (classification != null) {
+                        if (api.getApiDomain() == null && classification.getClassifiedDomain() != null) {
+                            api.setApiDomain(classification.getClassifiedDomain());
+                        }
+                        if (api.getApiKeyword() == null && classification.getClassifiedKeyword() != null) {
+                            api.setApiKeyword(classification.getClassifiedKeyword());
+                        }
+                    }
+                } catch (Exception e) {
+                    log.warn("AI 분류 실패, 기본값 사용: {} - {}", api.getApiName(), e.getMessage());
+                    // AI 분류 실패 시 기본값 설정
+                    if (api.getApiDomain() == null) {
+                        api.setApiDomain(ApiDomain.OTHERS);
+                    }
+                    if (api.getApiKeyword() == null) {
+                        api.setApiKeyword(ApiKeyword.API_DOCUMENT);
+                    }
                 }
             }
             
@@ -143,6 +193,53 @@ public class ApiManagementService {
             log.error("Failed to register API with parameters: {}", e.getMessage(), e);
             throw new RuntimeException("API registration failed: " + e.getMessage(), e);
         }
+    }
+
+    // === DTO 변환 헬퍼 메서드들 ===
+
+    /**
+     * ExternalApiRegisterRequest를 ExternalApi Entity로 변환
+     */
+    private ExternalApi convertToEntity(ExternalApiRegisterRequest request) {
+        ExternalApi api = new ExternalApi();
+        api.setApiName(request.getApiName());
+        api.setApiUrl(request.getApiUrl());
+        api.setApiIssuer(request.getApiIssuer());
+        api.setApiOwner(request.getApiOwner());
+        api.setApiDomain(request.getApiDomain());
+        api.setApiKeyword(request.getApiKeyword());
+        api.setHttpMethod(request.getHttpMethod());
+        api.setApiDescription(request.getApiDescription());
+        api.setAutoTokenRefresh(request.getAutoTokenRefresh());
+        
+        return api;
+    }
+
+    /**
+     * ApiParameterRegisterRequest 리스트를 ApiParameter Entity 리스트로 변환
+     */
+    private List<ApiParameter> convertToParameters(List<ApiParameterRegisterRequest> parameterRequests) {
+        if (parameterRequests == null || parameterRequests.isEmpty()) {
+            return new ArrayList<>();
+        }
+        
+        return parameterRequests.stream()
+            .map(this::convertToParameterEntity)
+            .collect(Collectors.toList());
+    }
+
+    /**
+     * ApiParameterRegisterRequest를 ApiParameter Entity로 변환
+     */
+    private ApiParameter convertToParameterEntity(ApiParameterRegisterRequest request) {
+        ApiParameter parameter = new ApiParameter();
+        parameter.setParamName(request.getParamName());
+        parameter.setParamType(request.getParamType());
+        parameter.setIsRequired(request.getIsRequired());
+        parameter.setDefaultValue(request.getDefaultValue());
+        parameter.setParamDescription(request.getDescription());
+        
+        return parameter;
     }
 
     /**
@@ -303,6 +400,14 @@ public class ApiManagementService {
      * API 복사 (새로운 API 생성)
      */
     @Transactional
+    public ExternalApi copyApi(String originalApiId) {
+        return copyApi(originalApiId, "복사본_" + System.currentTimeMillis());
+    }
+
+    /**
+     * API 복사 (새로운 API 생성)
+     */
+    @Transactional
     public ExternalApi copyApi(String originalApiId, String newApiName) {
         log.info("Copying API: {} to {}", originalApiId, newApiName);
         
@@ -351,6 +456,53 @@ public class ApiManagementService {
         } catch (Exception e) {
             log.error("Failed to copy API: {}", e.getMessage(), e);
             throw new RuntimeException("API copy failed: " + e.getMessage(), e);
+        }
+    }
+
+    /**
+     * API 삭제 (소프트 삭제)
+     */
+    @Transactional
+    public void deleteApi(String apiId) {
+        log.info("Deleting API: {}", apiId);
+        
+        try {
+            // 1. 파라미터 삭제
+            apiParameterService.deleteAllParametersByApiId(apiId);
+            
+            // 2. API 삭제
+            externalApiService.deleteApi(apiId);
+            
+            log.info("Successfully deleted API: {}", apiId);
+            
+        } catch (Exception e) {
+            log.error("Failed to delete API: {}", e.getMessage(), e);
+            throw new RuntimeException("API deletion failed: " + e.getMessage(), e);
+        }
+    }
+
+    /**
+     * API 하드 삭제 (완전 삭제)
+     */
+    @Transactional
+    public void hardDeleteApi(String apiId) {
+        log.info("Hard deleting API: {}", apiId);
+        
+        try {
+            // 1. 파라미터 하드 삭제 (개별 파라미터를 하나씩 하드 삭제)
+            List<ApiParameter> parameters = apiParameterService.getParametersByApiId(apiId);
+            for (ApiParameter parameter : parameters) {
+                apiParameterService.hardDeleteParameter(parameter.getParameterId());
+            }
+            
+            // 2. API 하드 삭제
+            externalApiService.hardDeleteApi(apiId);
+            
+            log.info("Successfully hard deleted API: {}", apiId);
+            
+        } catch (Exception e) {
+            log.error("Failed to hard delete API: {}", e.getMessage(), e);
+            throw new RuntimeException("API hard deletion failed: " + e.getMessage(), e);
         }
     }
 

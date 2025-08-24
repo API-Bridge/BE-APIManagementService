@@ -35,6 +35,9 @@ public class ApiHealthStatusDto {
     @JsonFormat(pattern = "yyyy-MM-dd HH:mm:ss")
     private LocalDateTime checkedAt;
 
+    /** 성공률 (0.0 ~ 1.0, 상세 헬스체크에서 사용) */
+    private Double successRate;
+
     /**
      * 헬스체크가 성공했는지 확인
      */
@@ -82,13 +85,21 @@ public class ApiHealthStatusDto {
      */
     public String getStatusSummary() {
         if (isHealthy()) {
-            return String.format("정상 (응답시간: %dms)", responseTime);
+            if (successRate != null) {
+                return String.format("정상 (응답시간: %dms, 성공률: %.1f%%)", responseTime, successRate * 100);
+            } else {
+                return String.format("정상 (응답시간: %dms)", responseTime);
+            }
         } else if (isUnreachable()) {
             return "연결 불가";
         } else if (hasError()) {
             return String.format("오류: %s", errorMessage != null ? errorMessage : "알 수 없는 오류");
         } else {
-            return String.format("비정상 (HTTP %d)", httpStatus != null ? httpStatus : 0);
+            if (successRate != null) {
+                return String.format("비정상 (HTTP %d, 성공률: %.1f%%)", httpStatus != null ? httpStatus : 0, successRate * 100);
+            } else {
+                return String.format("비정상 (HTTP %d)", httpStatus != null ? httpStatus : 0);
+            }
         }
     }
 }
