@@ -12,6 +12,7 @@ import org.example.APIManagementSvc.dto.common.ApiResponse;
 import org.example.APIManagementSvc.dto.common.PageResponse;
 import org.example.APIManagementSvc.dto.externalapi.*;
 import org.example.APIManagementSvc.service.ApiManagementService;
+import org.example.APIManagementSvc.service.ApiManagementService.ApiWithParameters;
 import org.example.APIManagementSvc.service.ExternalApiService;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
@@ -22,6 +23,8 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
+import java.util.Map;
+import java.util.HashMap;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
@@ -286,6 +289,59 @@ public class ExternalApiController {
     }
 
     /**
+     * 다중 도메인과 키워드로 벌크 검색
+     * POST 방식으로 복잡한 검색 조건을 받아서 처리
+     * Rate Limit: 1시간에 최대 500회 (벌크 검색은 제한적)
+     * POST /api/v1/external-apis/bulk-search
+     */
+    @PostMapping("/bulk-search")
+    @RateLimit(value = 500, timeUnit = TimeUnit.HOURS, keyType = RateLimit.KeyType.IP_ADDRESS)
+    public ResponseEntity<ApiResponse<BulkSearchResponse>> bulkSearch(
+            @Valid @RequestBody BulkSearchRequest request) {
+        
+        log.info("Bulk search request: domains={}, keywords={}", request.getDomains(), request.getKeywords());
+        
+        try {
+            // 서비스 레이어에서 벌크 검색 수행
+            ApiManagementService.BulkSearchResult result = apiManagementService
+                    .performBulkSearch(request.getDomains(), request.getKeywords());
+            
+            // 서비스 결과를 컨트롤러 응답 DTO로 변환
+            Map<String, List<ApiWithParametersResponse>> responseResults = new HashMap<>();
+            
+            result.getResults().forEach((key, apisWithParameters) -> {
+                List<ApiWithParametersResponse> responses = apisWithParameters.stream()
+                        .map(this::convertToApiWithParametersResponse)
+                        .collect(Collectors.toList());
+                responseResults.put(key, responses);
+            });
+            
+            // 응답 구성
+            BulkSearchResponse.SearchSummary summary = BulkSearchResponse.SearchSummary.builder()
+                    .requestedDomains(result.getSummary().getRequestedDomains())
+                    .requestedKeywords(result.getSummary().getRequestedKeywords())
+                    .matchedCombinations(result.getSummary().getMatchedCombinations())
+                    .totalApis(result.getSummary().getTotalApis())
+                    .build();
+            
+            BulkSearchResponse response = BulkSearchResponse.builder()
+                    .totalCount(result.getTotalCount())
+                    .summary(summary)
+                    .results(responseResults)
+                    .build();
+            
+            return ResponseEntity.ok(ApiResponse.success(response, 
+                    String.format("벌크 검색 완료: %d개 조합에서 총 %d개의 API를 찾았습니다.", 
+                    result.getSummary().getMatchedCombinations(), result.getTotalCount())));
+                    
+        } catch (Exception e) {
+            log.error("Failed to perform bulk search: {}", e.getMessage(), e);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body(ApiResponse.error("벌크 검색에 실패했습니다: " + e.getMessage()));
+        }
+    }
+
+    /**
      * API 통계 조회
      * Rate Limit: 1시간에 최대 500회 (관리자/분석가)
      * GET /api/v1/external-apis/statistics
@@ -387,4 +443,50 @@ public class ExternalApiController {
                 .deleted(api.getDeleted())
                 .build();
     }
+
+    /**
+     * ApiWithParameters를 ApiWithParametersResponse로 변환 (불필요한 필드 제외)
+     */
+    private ApiWithParametersResponse convertToApiWithParametersResponse(ApiWithParameters apiWithParameters) {
+        // 파라미터를 간소화된 버전으로 변환
+        List<ApiParameterSimpleResponse> simpleParameters = apiWithParameters.getParameters().stream()
+                .map(param -> ApiParameterSimpleResponse.builder()
+                        .apiId(param.getApiId())
+                        .paramName(param.getParamName())
+                        .paramType(param.getParamType())
+                        .isRequired(param.getIsRequired())
+                        .defaultValue(param.getDefaultValue())
+                        .paramDescription(param.getParamDescription())
+                        .build())
+                .collect(Collectors.toList());
+
+        // ExternalApi Entity를 간소화된 DTO로 변환
+        ExternalApiSimpleResponse simpleApi = convertToSimpleApiResponse(apiWithParameters.getApi());
+
+        return ApiWithParametersResponse.builder()
+                .api(simpleApi)
+                .parameters(simpleParameters)
+                .build();
+    }
+
+    /**
+     * ExternalApi Entity를 ExternalApiSimpleResponse DTO로 변환 (Lazy Loading 문제 방지)
+     */
+    private ExternalApiSimpleResponse convertToSimpleApiResponse(ExternalApi api) {
+        return ExternalApiSimpleResponse.builder()
+                .apiId(api.getApiId())
+                .apiName(api.getApiName())
+                .apiUrl(api.getApiUrl())
+                .apiIssuer(api.getApiIssuer())
+                .apiOwner(api.getApiOwner())
+                .apiDomain(api.getApiDomain())
+                .apiKeyword(api.getApiKeyword())
+                .httpMethod(api.getHttpMethod())
+                .apiDescription(api.getApiDescription())
+                .apiEffectiveness(api.getApiEffectiveness())
+                .createdAt(api.getCreatedAt())
+                .updatedAt(api.getUpdatedAt())
+                .build();
+    }
+
 }

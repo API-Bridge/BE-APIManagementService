@@ -73,6 +73,14 @@ spring:
       idle-timeout: 300000
       max-lifetime: 1200000
       connection-timeout: 20000
+  
+  # 데이터 초기화 설정
+  sql:
+    init:
+      mode: ${SQL_INIT_MODE:always}  # always, never, embedded
+      data-locations: classpath:data.sql
+      encoding: UTF-8
+      continue-on-error: true
 
 # 🔥 ELK 스택 설정 (로그 수집 서비스용)
 elk:
@@ -172,7 +180,7 @@ management:
 
 # 서버 설정
 server:
-  port: ${SERVER_PORT:8080}
+  port: ${SERVER_PORT:8082}
   servlet:
     context-path: /api/v1
   tomcat:
