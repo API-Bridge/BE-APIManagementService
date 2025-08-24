@@ -9,21 +9,12 @@ import org.example.APIManagementSvc.domain.Entity.ExternalApi;
 import org.example.APIManagementSvc.domain.enums.ApiDomain;
 import org.example.APIManagementSvc.domain.enums.ApiKeyword;
 import org.example.APIManagementSvc.dto.externalapi.ExternalApiUpdateRequest;
-import org.example.APIManagementSvc.repository.ApiParameterRepository;
-import org.example.APIManagementSvc.repository.ExternalApiRepository;
-import org.example.APIManagementSvc.service.ApiHealthCheckService;
-import org.example.APIManagementSvc.service.ApiKeyService;
-import org.example.APIManagementSvc.service.ApiParameterService;
-import org.example.APIManagementSvc.service.ApiTokenRefreshService;
-import org.example.APIManagementSvc.service.ExternalApiService;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.time.LocalDateTime;
 import java.util.List;
-import java.util.UUID;
-import java.util.ArrayList;
-import org.example.APIManagementSvc.domain.Entity.ApiKey;
+import java.util.Map;
+import java.util.HashMap;
 
 /**
  * API 메타데이터 통합 관리 서비스
@@ -37,59 +28,7 @@ public class ApiManagementService {
 
     private final ExternalApiService externalApiService;
     private final ApiParameterService apiParameterService;
-    private final ExternalApiRepository externalApiRepository;
-    private final ApiParameterRepository apiParameterRepository;
     private final AiClassificationService aiClassificationService;
-    private final ApiHealthCheckService apiHealthCheckService;
-    private final ApiTokenRefreshService apiTokenRefreshService;
-    private final ApiKeyService apiKeyService;
-
-    /**
-     * API와 파라미터를 함께 등록 (인증 정보 포함)
-     */
-    @Transactional
-    public ExternalApi registerApiWithParametersAndAuth(ExternalApi api, List<ApiParameter> parameters, 
-                                                      String apiKey, String apiToken) {
-        log.info("Registering API with parameters and auth: {}", api.getApiName());
-        
-        try {
-            // 1. AI 자동 분류 수행
-            if (api.getApiDomain() == null || api.getApiKeyword() == null) {
-                var classification = aiClassificationService.classifyApi(api.getApiId(), api.getApiName(), api.getApiDescription(), api.getApiUrl(), null);
-                if (api.getApiDomain() == null) {
-                    api.setApiDomain(classification.getClassifiedDomain());
-                }
-                if (api.getApiKeyword() == null) {
-                    api.setApiKeyword(classification.getClassifiedKeyword());
-                }
-            }
-            
-            // 2. API 등록 (인증 정보 포함)
-            ExternalApi registeredApi = externalApiService.registerApiWithAuth(api, apiKey, apiToken);
-            
-            // 3. 파라미터 등록
-            if (parameters != null && !parameters.isEmpty()) {
-                for (ApiParameter parameter : parameters) {
-                    parameter.setApiId(registeredApi.getApiId());
-                    apiParameterService.saveParameter(parameter);
-                }
-            }
-            
-            // 4. 초기 헬스체크 수행
-            try {
-                apiHealthCheckService.checkApiHealth(registeredApi);
-            } catch (Exception e) {
-                log.warn("초기 헬스체크 실패: {} - {}", api.getApiName(), e.getMessage());
-            }
-            
-            log.info("Successfully registered API with {} parameters and auth", parameters != null ? parameters.size() : 0);
-            return registeredApi;
-            
-        } catch (Exception e) {
-            log.error("Failed to register API with parameters and auth: {}", e.getMessage(), e);
-            throw new RuntimeException("API registration failed: " + e.getMessage(), e);
-        }
-    }
 
     /**
      * API와 파라미터를 함께 등록
@@ -285,46 +224,6 @@ public class ApiManagementService {
     }
 
     /**
-     * 도메인별 API와 파라미터 조회
-     */
-    public List<ApiWithParameters> getApisWithParametersByDomain(String domain) {
-        log.debug("Getting APIs with parameters by domain: {}", domain);
-        
-        ApiDomain apiDomain = ApiDomain.valueOf(domain.toUpperCase());
-        List<ExternalApi> apis = externalApiService.getApisByDomain(apiDomain);
-        
-        return apis.stream()
-                .map(api -> {
-                    List<ApiParameter> parameters = apiParameterService.getParametersByApiId(api.getApiId());
-                    return ApiWithParameters.builder()
-                            .api(api)
-                            .parameters(parameters)
-                            .build();
-                })
-                .toList();
-    }
-
-    /**
-     * 키워드별 API와 파라미터 조회
-     */
-    public List<ApiWithParameters> getApisWithParametersByKeyword(String keyword) {
-        log.debug("Getting APIs with parameters by keyword: {}", keyword);
-        
-        ApiKeyword apiKeyword = ApiKeyword.valueOf(keyword.toUpperCase());
-        List<ExternalApi> apis = externalApiService.getApisByKeyword(apiKeyword);
-        
-        return apis.stream()
-                .map(api -> {
-                    List<ApiParameter> parameters = apiParameterService.getParametersByApiId(api.getApiId());
-                    return ApiWithParameters.builder()
-                            .api(api)
-                            .parameters(parameters)
-                            .build();
-                })
-                .toList();
-    }
-
-    /**
      * 도메인과 키워드 조합으로 API와 파라미터 조회
      */
     public List<ApiWithParameters> getApisWithParametersByDomainAndKeyword(String domain, String keyword) {
@@ -348,105 +247,109 @@ public class ApiManagementService {
     }
 
     /**
-     * 복합 검색: 도메인, 키워드, 검색어를 조합하여 API 검색
+     * 벌크 검색: 다중 도메인과 키워드로 API 검색
      */
-    public List<ApiWithParameters> searchApisWithParameters(String domain, String keyword, String searchTerm) {
-        log.debug("Searching APIs with domain: {}, keyword: {}, searchTerm: {}", domain, keyword, searchTerm);
+    public BulkSearchResult performBulkSearch(List<String> domainCodes, List<String> keywordCodes) {
+        log.info("Performing bulk search: domains={}, keywords={}", domainCodes, keywordCodes);
         
-        List<ExternalApi> apis = new ArrayList<>();
+        Map<String, List<ApiWithParameters>> results = new HashMap<>();
+        int totalCount = 0;
+        int matchedCombinations = 0;
         
-        if (domain != null && keyword != null) {
-            // 도메인 + 키워드 조합 검색
-            apis = externalApiService.getApisByDomainAndKeyword(
-                ApiDomain.valueOf(domain.toUpperCase()), 
-                ApiKeyword.valueOf(keyword.toUpperCase())
-            );
-        } else if (domain != null) {
-            // 도메인만으로 검색
-            apis = externalApiService.getApisByDomain(ApiDomain.valueOf(domain.toUpperCase()));
-        } else if (keyword != null) {
-            // 키워드만으로 검색
-            apis = externalApiService.getApisByKeyword(ApiKeyword.valueOf(keyword.toUpperCase()));
-        } else {
-            // 검색어만으로 검색 (전체 API에서 검색)
-            apis = externalApiService.searchApis(searchTerm);
-        }
-        
-        // 검색어가 있는 경우 추가 필터링
-        if (searchTerm != null && !searchTerm.trim().isEmpty()) {
-            apis = apis.stream()
-                    .filter(api -> 
-                        api.getApiName().toLowerCase().contains(searchTerm.toLowerCase()) ||
-                        api.getApiDescription().toLowerCase().contains(searchTerm.toLowerCase())
-                    )
-                    .toList();
-        }
-        
-        return apis.stream()
-                .map(api -> {
-                    List<ApiParameter> parameters = apiParameterService.getParametersByApiId(api.getApiId());
-                    return ApiWithParameters.builder()
-                            .api(api)
-                            .parameters(parameters)
-                            .build();
-                })
-                .toList();
-    }
-
-    /**
-     * API 키와 External API 연결
-     */
-    @Transactional
-    public ExternalApi linkApiKey(String apiId, String apiKeyId) {
-        log.info("API 키 연결: API={}, API Key={}", apiId, apiKeyId);
-        
-        try {
-            // API 존재 여부 확인
-            ExternalApi api = externalApiService.getApiById(apiId)
-                    .orElseThrow(() -> new IllegalArgumentException("API not found: " + apiId));
-            
-            // API 키 존재 여부 확인
-            ApiKey apiKey = apiKeyService.getApiKey(apiKeyId)
-                    .orElseThrow(() -> new IllegalArgumentException("API key not found: " + apiKeyId));
-            
-            // API 키가 활성 상태인지 확인
-            if (!apiKey.isActive()) {
-                throw new IllegalArgumentException("API key is not active: " + apiKeyId);
+        // 각 도메인별로 처리
+        for (String domainCode : domainCodes) {
+            try {
+                // 대소문자 구분 없이 도메인 찾기
+                ApiDomain domain = findDomainByCode(domainCode);
+                if (domain == null) {
+                    log.warn("Invalid domain code: {}", domainCode);
+                    continue;
+                }
+                
+                // 해당 도메인의 키워드들만 필터링
+                for (String keywordCode : keywordCodes) {
+                    try {
+                        // 대소문자 구분 없이 키워드 찾기
+                        ApiKeyword keyword = findKeywordByCode(keywordCode);
+                        if (keyword == null || !keyword.getDomain().equals(domain)) {
+                            continue; // 도메인과 매칭되지 않는 키워드는 스킵
+                        }
+                        
+                        // 도메인-키워드 조합으로 검색
+                        List<ApiWithParameters> apisWithParameters = 
+                                getApisWithParametersByDomainAndKeyword(domain.name(), keyword.name());
+                        
+                        if (!apisWithParameters.isEmpty()) {
+                            String key = domain.getDisplayName() + " - " + keyword.getDisplayName();
+                            results.put(key, apisWithParameters);
+                            totalCount += apisWithParameters.size();
+                            matchedCombinations++;
+                            
+                            log.debug("Found {} APIs for {}+{}", apisWithParameters.size(), domain, keyword);
+                        }
+                        
+                    } catch (IllegalArgumentException e) {
+                        log.warn("Invalid keyword code: {}", keywordCode);
+                    }
+                }
+                
+            } catch (IllegalArgumentException e) {
+                log.warn("Invalid domain code: {}", domainCode);
             }
-            
-            // API와 API 키 연결
-            api.setApiKey(apiKey);
-            ExternalApi updatedApi = externalApiRepository.save(api);
-            
-            log.info("API 키 연결 완료: {} -> {}", apiId, apiKeyId);
-            return updatedApi;
-            
-        } catch (Exception e) {
-            log.error("API 키 연결 실패: {} - {}", apiId, e.getMessage(), e);
-            throw new RuntimeException("API 키 연결 실패: " + e.getMessage());
+        }
+        
+        // 검색 요약 정보 생성
+        BulkSearchSummary summary = BulkSearchSummary.builder()
+                .requestedDomains(domainCodes.size())
+                .requestedKeywords(keywordCodes.size())
+                .matchedCombinations(matchedCombinations)
+                .totalApis(totalCount)
+                .build();
+        
+        return BulkSearchResult.builder()
+                .totalCount(totalCount)
+                .summary(summary)
+                .results(results)
+                .build();
+    }
+
+    /**
+     * 대소문자 구분 없이 도메인 찾기 (코드 또는 enum name으로)
+     */
+    private ApiDomain findDomainByCode(String code) {
+        if (code == null) return null;
+        
+        // 1. 소문자 코드로 검색 (예: "government")
+        ApiDomain domain = ApiDomain.fromCode(code.toLowerCase());
+        if (domain != null && domain != ApiDomain.OTHERS) {
+            return domain;
+        }
+        
+        // 2. enum name으로 검색 (예: "GOVERNMENT")
+        try {
+            return ApiDomain.valueOf(code.toUpperCase());
+        } catch (IllegalArgumentException e) {
+            return null;
         }
     }
 
     /**
-     * API 키 연결 해제
+     * 대소문자 구분 없이 키워드 찾기 (코드 또는 enum name으로)
      */
-    @Transactional
-    public ExternalApi unlinkApiKey(String apiId) {
-        log.info("API 키 연결 해제: API={}", apiId);
+    private ApiKeyword findKeywordByCode(String code) {
+        if (code == null) return null;
         
+        // 1. 소문자 코드로 검색 (예: "api_document")
+        ApiKeyword keyword = ApiKeyword.fromCode(code.toLowerCase());
+        if (keyword != null) {
+            return keyword;
+        }
+        
+        // 2. enum name으로 검색 (예: "API_DOCUMENT")
         try {
-            ExternalApi api = externalApiService.getApiById(apiId)
-                    .orElseThrow(() -> new IllegalArgumentException("API not found: " + apiId));
-            
-            api.setApiKey(null);
-            ExternalApi updatedApi = externalApiRepository.save(api);
-            
-            log.info("API 키 연결 해제 완료: {}", apiId);
-            return updatedApi;
-            
-        } catch (Exception e) {
-            log.error("API 키 연결 해제 실패: {} - {}", apiId, e.getMessage(), e);
-            throw new RuntimeException("API 키 연결 해제 실패: " + e.getMessage());
+            return ApiKeyword.valueOf(code.toUpperCase());
+        } catch (IllegalArgumentException e) {
+            return null;
         }
     }
 
@@ -465,5 +368,22 @@ public class ApiManagementService {
         private String errorMessage;
         private ExternalApi api;
         private List<ApiParameter> parameters;
+    }
+
+    @Getter
+    @Builder
+    public static class BulkSearchResult {
+        private int totalCount;
+        private BulkSearchSummary summary;
+        private Map<String, List<ApiWithParameters>> results;
+    }
+
+    @Getter
+    @Builder
+    public static class BulkSearchSummary {
+        private int requestedDomains;
+        private int requestedKeywords;
+        private int matchedCombinations;
+        private int totalApis;
     }
 }
