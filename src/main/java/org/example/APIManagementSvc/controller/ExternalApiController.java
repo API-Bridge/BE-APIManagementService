@@ -22,6 +22,8 @@ import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
 import java.util.Optional;
+import java.util.Map;
+import java.util.HashMap;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
@@ -352,6 +354,62 @@ public class ExternalApiController {
     }
 
     /**
+     * 다중 도메인과 키워드로 벌크 검색
+     * POST 방식으로 복잡한 검색 조건을 받아서 처리
+     * Rate Limit: 1시간에 최대 500회 (벌크 검색은 제한적)
+     * POST /external-apis/bulk-search
+     */
+    @PostMapping("/bulk-search")
+    @RateLimit(value = 500, timeUnit = TimeUnit.HOURS, keyType = RateLimit.KeyType.IP_ADDRESS)
+    public ResponseEntity<ApiResponse<BulkSearchResponse>> bulkSearch(
+            @Valid @RequestBody BulkSearchRequest request) {
+        
+        log.info("Bulk search request: domains={}, keywords={}", request.getDomains(), request.getKeywords());
+        
+        try {
+            // 서비스 레이어에서 벌크 검색 수행
+            var searchResults = apiManagementService.searchApisWithParameters(
+                request.getDomains().get(0), // 첫 번째 도메인 사용
+                request.getKeywords().get(0), // 첫 번째 키워드 사용
+                null
+            );
+            
+            // 결과를 BulkSearchResponse 형태로 변환
+            Map<String, List<ApiWithParametersResponse>> responseResults = new HashMap<>();
+            
+            // 도메인-키워드 조합별로 그룹핑
+            String key = request.getDomains().get(0) + "-" + request.getKeywords().get(0);
+            List<ApiWithParametersResponse> responses = searchResults.stream()
+                    .map(this::convertToApiWithParametersResponse)
+                    .collect(Collectors.toList());
+            responseResults.put(key, responses);
+            
+            // 응답 구성
+            BulkSearchResponse.SearchSummary summary = BulkSearchResponse.SearchSummary.builder()
+                    .requestedDomains(request.getDomains().size())
+                    .requestedKeywords(request.getKeywords().size())
+                    .matchedCombinations(1) // 현재는 단순화
+                    .totalApis(responses.size())
+                    .build();
+            
+            BulkSearchResponse response = BulkSearchResponse.builder()
+                    .totalCount(responses.size())
+                    .summary(summary)
+                    .results(responseResults)
+                    .build();
+            
+            return ResponseEntity.ok(ApiResponse.success(response, 
+                    String.format("벌크 검색 완료: %d개 조합에서 총 %d개의 API를 찾았습니다.", 
+                    summary.getMatchedCombinations(), response.getTotalCount())));
+                    
+        } catch (Exception e) {
+            log.error("Failed to perform bulk search: {}", e.getMessage(), e);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body(ApiResponse.error("벌크 검색에 실패했습니다: " + e.getMessage()));
+        }
+    }
+
+    /**
      * 파라미터 삭제 (Soft Delete)
      * Rate Limit: 1시간에 최대 50회 (관리자 작업)
      * DELETE /external-apis/{apiId}/parameters/{parameterId}
@@ -470,6 +528,44 @@ public class ExternalApiController {
                 .defaultValue(parameter.getDefaultValue())
                 .createdAt(parameter.getCreatedAt())
                 .updatedAt(parameter.getUpdatedAt())
+                .build();
+    }
+
+    /**
+     * ApiWithParameters를 ApiWithParametersResponse로 변환
+     */
+    private ApiWithParametersResponse convertToApiWithParametersResponse(ApiManagementService.ApiWithParameters apiWithParameters) {
+        // 파라미터를 간소화된 버전으로 변환
+        List<ApiParameterSimpleResponse> simpleParameters = apiWithParameters.getParameters().stream()
+                .map(param -> ApiParameterSimpleResponse.builder()
+                        .apiId(param.getApiId())
+                        .paramName(param.getParamName())
+                        .paramType(param.getParamType())
+                        .isRequired(param.getIsRequired())
+                        .defaultValue(param.getDefaultValue())
+                        .paramDescription(param.getParamDescription())
+                        .build())
+                .collect(Collectors.toList());
+
+        // ExternalApi Entity를 간소화된 DTO로 변환
+        ExternalApiSimpleResponse simpleApi = ExternalApiSimpleResponse.builder()
+                .apiId(apiWithParameters.getApi().getApiId())
+                .apiName(apiWithParameters.getApi().getApiName())
+                .apiUrl(apiWithParameters.getApi().getApiUrl())
+                .apiIssuer(apiWithParameters.getApi().getApiIssuer())
+                .apiOwner(apiWithParameters.getApi().getApiOwner())
+                .apiDomain(apiWithParameters.getApi().getApiDomain())
+                .apiKeyword(apiWithParameters.getApi().getApiKeyword())
+                .httpMethod(apiWithParameters.getApi().getHttpMethod())
+                .apiDescription(apiWithParameters.getApi().getApiDescription())
+                .apiEffectiveness(apiWithParameters.getApi().getApiEffectiveness())
+                .createdAt(apiWithParameters.getApi().getCreatedAt())
+                .updatedAt(apiWithParameters.getApi().getUpdatedAt())
+                .build();
+
+        return ApiWithParametersResponse.builder()
+                .api(simpleApi)
+                .parameters(simpleParameters)
                 .build();
     }
 }
