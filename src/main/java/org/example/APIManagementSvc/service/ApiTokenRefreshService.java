@@ -22,6 +22,7 @@ import org.example.APIManagementSvc.domain.Entity.ApiKey;
 /**
  * API 토큰 자동 갱신 서비스
  * 4시간마다 만료된 토큰을 자동으로 재발급합니다.
+ * 스케줄러 기반으로 동작하며 외부에서 수동 호출할 수 없습니다.
  */
 @Slf4j
 @Service
@@ -39,6 +40,7 @@ public class ApiTokenRefreshService {
 
     /**
      * 4시간마다 토큰 갱신 스케줄링
+     * 외부에서 호출할 수 없으며 스케줄러에 의해 자동 실행됩니다.
      */
     @Scheduled(fixedRate = TOKEN_REFRESH_INTERVAL_HOURS * 60 * 60 * 1000) // 4시간마다
     public void refreshExpiredTokens() {
@@ -84,7 +86,7 @@ public class ApiTokenRefreshService {
     /**
      * 특정 API의 토큰 갱신
      */
-    public void refreshTokenForApi(ExternalApi api) {
+    private void refreshTokenForApi(ExternalApi api) {
         log.info("API {} 토큰 갱신 시작", api.getApiName());
         
         if (!api.getAutoTokenRefresh()) {
@@ -263,39 +265,5 @@ public class ApiTokenRefreshService {
      */
     private LocalDateTime calculateTokenExpiry() {
         return LocalDateTime.now().plusHours(TOKEN_REFRESH_INTERVAL_HOURS);
-    }
-
-    /**
-     * 수동으로 특정 API 토큰 갱신
-     */
-    public void manuallyRefreshToken(String apiId) {
-        log.info("수동 토큰 갱신 시작: {}", apiId);
-        
-        ExternalApi api = externalApiRepository.findByApiId(apiId)
-                .orElseThrow(() -> new IllegalArgumentException("API not found: " + apiId));
-        
-        refreshTokenForApi(api);
-    }
-
-    /**
-     * 토큰 갱신 상태 확인
-     */
-    public String getTokenRefreshStatus(String apiId) {
-        ExternalApi api = externalApiRepository.findByApiId(apiId)
-                .orElseThrow(() -> new IllegalArgumentException("API not found: " + apiId));
-        
-        if (!api.hasToken()) {
-            return "토큰이 설정되지 않음";
-        }
-        
-        if (api.isTokenExpired()) {
-            return "토큰 만료됨";
-        }
-        
-        if (api.isTokenExpiringSoon()) {
-            return "토큰 곧 만료 예정";
-        }
-        
-        return "토큰 정상";
     }
 }

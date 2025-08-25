@@ -18,12 +18,12 @@ import java.time.LocalDateTime;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Optional;
 import java.util.UUID;
 
 /**
  * AI 분류 서비스
- * Gemini AI를 사용하여 API를 자동으로 분류하는 서비스
+ * API 등록 시 자동으로 AI 분류를 수행하는 서비스
+ * Gemini AI를 사용하여 API를 도메인과 키워드로 자동 분류
  */
 @Slf4j
 @Service
@@ -36,7 +36,7 @@ public class AiClassificationService {
 
     /**
      * 🔥 API 자동 분류 실행
-     * ExternalApiRegistrationService에서 사용
+     * API 등록 시 자동으로 호출되어 도메인과 키워드를 분류
      */
     @Transactional
     public AiClassification classifyApi(String apiId, String apiName, String apiDescription, String apiUrl, String classificationPrompt) {
@@ -244,100 +244,6 @@ public class AiClassificationService {
             default:
                 return ApiKeyword.API_DOCUMENT;
         }
-    }
-
-    /**
-     * 분류 결과 조회
-     */
-    @Transactional(readOnly = true)
-    public Optional<AiClassification> getClassificationById(String classificationId) {
-        return aiClassificationRepository.findByClassificationId(classificationId);
-    }
-
-    /**
-     * API의 분류 결과 조회
-     */
-    @Transactional(readOnly = true)
-    public List<AiClassification> getClassificationsByApiId(String apiId) {
-        return aiClassificationRepository.findByApiId(apiId);
-    }
-
-    /**
-     * 도메인별 분류 결과 조회
-     */
-    @Transactional(readOnly = true)
-    public List<AiClassification> getClassificationsByDomain(ApiDomain domain) {
-        return aiClassificationRepository.findByClassifiedDomain(domain);
-    }
-
-    /**
-     * 키워드별 분류 결과 조회
-     */
-    @Transactional(readOnly = true)
-    public List<AiClassification> getClassificationsByKeyword(ApiKeyword keyword) {
-        return aiClassificationRepository.findByClassifiedKeyword(keyword);
-    }
-
-    /**
-     * 최근 분류 결과 조회
-     */
-    @Transactional(readOnly = true)
-    public List<AiClassification> getRecentClassifications(int days) {
-        LocalDateTime since = LocalDateTime.now().minusDays(days);
-        return aiClassificationRepository.findRecentlyClassified(since);
-    }
-
-    /**
-     * 분류 결과 통계 조회
-     */
-    @Transactional(readOnly = true)
-    public List<Object[]> getClassificationStatsByDomain() {
-        return aiClassificationRepository.getClassificationStatsByDomain();
-    }
-
-    /**
-     * 분류 결과 통계 조회
-     */
-    @Transactional(readOnly = true)
-    public List<Object[]> getClassificationStatsByKeyword() {
-        return aiClassificationRepository.getClassificationStatsByKeyword();
-    }
-
-    /**
-     * 분류 결과 검색
-     */
-    @Transactional(readOnly = true)
-    public List<AiClassification> searchClassifications(String searchTerm) {
-        // 간단한 키워드 기반 검색으로 대체
-        return aiClassificationRepository.findByClassifiedDomainAndClassifiedKeyword(
-            ApiDomain.OTHERS, ApiKeyword.API_DOCUMENT);
-    }
-
-    /**
-     * 분류 결과 삭제 (Soft Delete)
-     */
-    @Transactional
-    public void deleteClassification(String classificationId) {
-        Optional<AiClassification> classification = aiClassificationRepository.findByClassificationId(classificationId);
-        if (classification.isPresent()) {
-            AiClassification entity = classification.get();
-            entity.setDeleted(true);
-            aiClassificationRepository.save(entity);
-            log.info("분류 결과 삭제 완료: {}", classificationId);
-        }
-    }
-
-    /**
-     * API의 모든 분류 결과 삭제
-     */
-    @Transactional
-    public void deleteAllClassificationsByApiId(String apiId) {
-        List<AiClassification> classifications = aiClassificationRepository.findByApiId(apiId);
-        for (AiClassification classification : classifications) {
-            classification.setDeleted(true);
-        }
-        aiClassificationRepository.saveAll(classifications);
-        log.info("API의 모든 분류 결과 삭제 완료: {}", apiId);
     }
 }
 

@@ -9,13 +9,15 @@ import org.example.APIManagementSvc.domain.Entity.ExternalApi;
 import org.example.APIManagementSvc.domain.enums.ApiDomain;
 import org.example.APIManagementSvc.domain.enums.ApiKeyword;
 import org.example.APIManagementSvc.dto.externalapi.ExternalApiUpdateRequest;
+import org.example.APIManagementSvc.dto.externalapi.ApiStatisticsResponse;
 import org.example.APIManagementSvc.repository.ApiParameterRepository;
 import org.example.APIManagementSvc.repository.ExternalApiRepository;
 import org.example.APIManagementSvc.service.ApiHealthCheckService;
 import org.example.APIManagementSvc.service.ApiKeyService;
 import org.example.APIManagementSvc.service.ApiParameterService;
 import org.example.APIManagementSvc.service.ApiTokenRefreshService;
-import org.example.APIManagementSvc.service.ExternalApiService;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -23,6 +25,7 @@ import java.time.LocalDateTime;
 import java.util.List;
 import java.util.UUID;
 import java.util.ArrayList;
+import java.util.Optional;
 import org.example.APIManagementSvc.domain.Entity.ApiKey;
 import org.example.APIManagementSvc.dto.externalapi.ExternalApiRegisterRequest;
 import org.example.APIManagementSvc.dto.externalapi.ApiParameterRegisterRequest;
@@ -30,7 +33,7 @@ import java.util.stream.Collectors;
 
 /**
  * API 메타데이터 통합 관리 서비스
- * ExternalApi와 ApiParameter를 함께 관리합니다.
+ * ExternalApi와 ApiParameter를 함께 관리하며, ExternalApiService의 모든 기능을 포함합니다.
  */
 @Slf4j
 @Service
@@ -38,7 +41,6 @@ import java.util.stream.Collectors;
 @Transactional(readOnly = true)
 public class ApiManagementService {
 
-    private final ExternalApiService externalApiService;
     private final ApiParameterService apiParameterService;
     private final ExternalApiRepository externalApiRepository;
     private final ApiParameterRepository apiParameterRepository;
@@ -46,6 +48,246 @@ public class ApiManagementService {
     private final ApiHealthCheckService apiHealthCheckService;
     private final ApiTokenRefreshService apiTokenRefreshService;
     private final ApiKeyService apiKeyService;
+
+    // === ExternalApiService 기능 통합 ===
+
+    /**
+     * API 등록 (기본)
+     */
+    @Transactional
+    public ExternalApi registerApi(ExternalApi api) {
+        log.info("Registering API: {}", api.getApiName());
+        
+        // 입력값 검증
+        validateApiInput(api);
+        
+        // 중복 확인
+        if (externalApiRepository.existsByApiName(api.getApiName())) {
+            throw new IllegalArgumentException("API with name '" + api.getApiName() + "' already exists");
+        }
+        
+        // 기본값 설정
+        api.setApiEffectiveness(true);
+        api.setDeleted(false);
+        api.setCreatedAt(LocalDateTime.now());
+        api.setUpdatedAt(LocalDateTime.now());
+        
+        return externalApiRepository.save(api);
+    }
+
+    /**
+     * API 등록 (인증 정보 포함)
+     */
+    @Transactional
+    public ExternalApi registerApiWithAuth(ExternalApi api, String apiKey, String apiToken) {
+        log.info("Registering API with auth: {}", api.getApiName());
+        
+        // 입력값 검증
+        validateApiInput(api);
+        
+        // 중복 확인
+        if (externalApiRepository.existsByApiName(api.getApiName())) {
+            throw new IllegalArgumentException("API with name '" + api.getApiName() + "' already exists");
+        }
+        
+        // 기본값 설정
+        api.setApiEffectiveness(true);
+        api.setDeleted(false);
+        api.setCreatedAt(LocalDateTime.now());
+        api.setUpdatedAt(LocalDateTime.now());
+        
+                    // API 키와 토큰 설정
+            if (apiKey != null && !apiKey.trim().isEmpty()) {
+                // ApiKey 엔티티 조회 및 연결
+                Optional<ApiKey> foundApiKey = apiKeyService.getApiKey(apiKey);
+                if (foundApiKey.isPresent()) {
+                    api.setApiKey(foundApiKey.get());
+                } else {
+                    log.warn("API Key not found: {}", apiKey);
+                }
+            }
+        
+        if (apiToken != null && !apiToken.trim().isEmpty()) {
+            api.setApiToken(apiToken);
+        }
+        
+        return externalApiRepository.save(api);
+    }
+
+    /**
+     * API 입력값 검증
+     */
+    private void validateApiInput(ExternalApi api) {
+        if (api.getApiName() == null || api.getApiName().trim().isEmpty()) {
+            throw new IllegalArgumentException("API name is required");
+        }
+        
+        if (api.getApiUrl() == null || api.getApiUrl().trim().isEmpty()) {
+            throw new IllegalArgumentException("API URL is required");
+        }
+        
+        if (api.getHttpMethod() == null || api.getHttpMethod().trim().isEmpty()) {
+            throw new IllegalArgumentException("HTTP method is required");
+        }
+        
+        if (api.getApiDomain() == null) {
+            throw new IllegalArgumentException("API domain is required");
+        }
+        
+        if (api.getApiKeyword() == null) {
+            throw new IllegalArgumentException("API keyword is required");
+        }
+        
+        if (api.getApiIssuer() == null || api.getApiIssuer().trim().isEmpty()) {
+            throw new IllegalArgumentException("API issuer is required");
+        }
+    }
+
+    /**
+     * 모든 활성 API 조회 (페이징)
+     */
+    public Page<ExternalApi> getApisWithPaging(Pageable pageable) {
+        log.debug("Getting APIs with paging: {}", pageable);
+        return externalApiRepository.findValidApis(pageable);
+    }
+
+    /**
+     * API 검색 (이름, 설명, 제공기관으로 검색)
+     */
+    public List<ExternalApi> searchApis(String query) {
+        log.debug("Searching APIs with query: {}", query);
+        return externalApiRepository.findBySearchTermAndDeletedFalse(query);
+    }
+
+    /**
+     * API 통계 조회
+     */
+    public ApiStatisticsResponse getApiStatistics() {
+        log.debug("Getting API statistics");
+        
+        long totalApis = externalApiRepository.countByDeletedFalse();
+        long activeApis = externalApiRepository.countByApiEffectivenessTrueAndDeletedFalse();
+        long inactiveApis = totalApis - activeApis;
+        
+        return ApiStatisticsResponse.builder()
+                .totalApis(totalApis)
+                .activeApis(activeApis)
+                .inactiveApis(inactiveApis)
+                .build();
+    }
+
+    /**
+     * API ID로 조회
+     */
+    public Optional<ExternalApi> getApiById(String apiId) {
+        log.debug("Getting API by ID: {}", apiId);
+        return externalApiRepository.findByApiId(apiId)
+                .filter(api -> !api.getDeleted());
+    }
+
+    /**
+     * API 이름으로 조회
+     */
+    public Optional<ExternalApi> getApiByName(String apiName) {
+        log.debug("Getting API by name: {}", apiName);
+        return externalApiRepository.findByApiName(apiName)
+                .filter(api -> !api.getDeleted());
+    }
+
+    /**
+     * 활성 API 목록 조회 (삭제되지 않은 API)
+     */
+    public List<ExternalApi> getAllActiveApis() {
+        log.debug("Getting all active APIs");
+        return externalApiRepository.findByDeletedFalse();
+    }
+
+    /**
+     * 중요 API 목록 조회 (높은 우선순위를 가진 API들)
+     */
+    public List<ExternalApi> getImportantApis() {
+        log.debug("Getting important APIs");
+        // 중요 API 기준: 정부/공공 도메인, 금융 도메인, 또는 높은 사용 빈도를 가진 API
+        List<ExternalApi> allActiveApis = getAllActiveApis();
+        return allActiveApis.stream()
+            .filter(api -> api.getApiDomain() == ApiDomain.GOVERNMENT || 
+                          api.getApiDomain() == ApiDomain.FINANCE || 
+                          api.getApiDomain() == ApiDomain.TRANSPORTATION)
+            .toList();
+    }
+
+    /**
+     * 모든 API 목록 조회 (삭제된 API 포함)
+     */
+    public List<ExternalApi> getAllApis() {
+        log.debug("Getting all APIs (including deleted ones)");
+        return externalApiRepository.findAll();
+    }
+
+    /**
+     * API 수정 (기본)
+     */
+    @Transactional
+    public ExternalApi updateApi(String apiId, ExternalApi updateData) {
+        log.info("Updating API: {}", apiId);
+        
+        ExternalApi existingApi = externalApiRepository.findByApiId(apiId)
+                .filter(api -> !api.getDeleted())
+                .orElseThrow(() -> new IllegalArgumentException("API not found: " + apiId));
+
+        // 업데이트 가능한 필드들 수정
+        if (updateData.getApiName() != null) {
+            existingApi.setApiName(updateData.getApiName());
+        }
+        if (updateData.getApiDescription() != null) {
+            existingApi.setApiDescription(updateData.getApiDescription());
+        }
+        if (updateData.getApiUrl() != null) {
+            existingApi.setApiUrl(updateData.getApiUrl());
+        }
+        if (updateData.getHttpMethod() != null) {
+            existingApi.setHttpMethod(updateData.getHttpMethod());
+        }
+        if (updateData.getApiDomain() != null) {
+            existingApi.setApiDomain(updateData.getApiDomain());
+        }
+        if (updateData.getApiKeyword() != null) {
+            existingApi.setApiKeyword(updateData.getApiKeyword());
+        }
+        if (updateData.getApiIssuer() != null) {
+            existingApi.setApiIssuer(updateData.getApiIssuer());
+        }
+        if (updateData.getApiEffectiveness() != null) {
+            existingApi.setApiEffectiveness(updateData.getApiEffectiveness());
+        }
+
+        existingApi.setUpdatedAt(LocalDateTime.now());
+        
+        return externalApiRepository.save(existingApi);
+    }
+
+
+
+
+
+    /**
+     * API 유효성 업데이트
+     */
+    @Transactional
+    public ExternalApi updateApiEffectiveness(String apiId, boolean effectiveness) {
+        log.info("Updating API effectiveness: {} to {}", apiId, effectiveness);
+        
+        ExternalApi api = externalApiRepository.findByApiId(apiId)
+                .filter(a -> !a.getDeleted())
+                .orElseThrow(() -> new IllegalArgumentException("API not found: " + apiId));
+
+        api.setApiEffectiveness(effectiveness);
+        api.setUpdatedAt(LocalDateTime.now());
+        
+        return externalApiRepository.save(api);
+    }
+
+    // === 기존 ApiManagementService 기능 ===
 
     /**
      * ExternalApiRegisterRequest를 받아서 API와 파라미터를 함께 등록
@@ -108,18 +350,10 @@ public class ApiManagementService {
                 }
             }
             
-            // 3. 토큰 만료 시간 설정 (토큰이 제공된 경우)
-            if (apiToken != null && !apiToken.trim().isEmpty()) {
-                // 토큰 만료 시간을 4시간 후로 설정
-                LocalDateTime tokenExpiresAt = LocalDateTime.now().plusHours(4);
-                api.setTokenExpiresAt(tokenExpiresAt);
-                log.info("API 토큰 설정 완료 - 만료 시간: {}", tokenExpiresAt);
-            }
+            // 3. API 등록 (인증 정보 포함)
+            ExternalApi registeredApi = registerApiWithAuth(api, apiKey, apiToken);
             
-            // 4. API 등록 (인증 정보 포함)
-            ExternalApi registeredApi = externalApiService.registerApiWithAuth(api, apiKey, apiToken);
-            
-            // 5. 파라미터 등록
+            // 4. 파라미터 등록
             if (parameters != null && !parameters.isEmpty()) {
                 for (ApiParameter parameter : parameters) {
                     parameter.setApiId(registeredApi.getApiId());
@@ -127,12 +361,7 @@ public class ApiManagementService {
                 }
             }
             
-            // 6. 초기 헬스체크 수행
-            try {
-                apiHealthCheckService.checkApiHealth(registeredApi);
-            } catch (Exception e) {
-                log.warn("초기 헬스체크 실패: {} - {}", api.getApiName(), e.getMessage());
-            }
+            // 6. 초기 헬스체크는 스케줄러에서 자동으로 수행됨
             
             log.info("Successfully registered API with {} parameters and auth", parameters != null ? parameters.size() : 0);
             return registeredApi;
@@ -176,7 +405,7 @@ public class ApiManagementService {
             }
             
             // 2. API 등록
-            ExternalApi registeredApi = externalApiService.registerApi(api);
+            ExternalApi registeredApi = registerApi(api);
             
             // 3. 파라미터 등록
             if (parameters != null && !parameters.isEmpty()) {
@@ -224,20 +453,23 @@ public class ApiManagementService {
         }
         
         return parameterRequests.stream()
-            .map(this::convertToParameterEntity)
+            .map(this::convertToParameter)
             .collect(Collectors.toList());
     }
 
     /**
      * ApiParameterRegisterRequest를 ApiParameter Entity로 변환
      */
-    private ApiParameter convertToParameterEntity(ApiParameterRegisterRequest request) {
+    private ApiParameter convertToParameter(ApiParameterRegisterRequest request) {
         ApiParameter parameter = new ApiParameter();
         parameter.setParamName(request.getParamName());
         parameter.setParamType(request.getParamType());
+        parameter.setParamDescription(request.getDescription());
         parameter.setIsRequired(request.getIsRequired());
         parameter.setDefaultValue(request.getDefaultValue());
-        parameter.setParamDescription(request.getDescription());
+        parameter.setDeleted(false);
+        parameter.setCreatedAt(LocalDateTime.now());
+        parameter.setUpdatedAt(LocalDateTime.now());
         
         return parameter;
     }
@@ -279,7 +511,7 @@ public class ApiManagementService {
     public Object getApiWithParameters(String apiId) {
         log.debug("Getting API with parameters: {}", apiId);
         
-        ExternalApi api = externalApiService.getApiById(apiId)
+        ExternalApi api = getApiById(apiId)
                 .orElseThrow(() -> new IllegalArgumentException("API not found: " + apiId));
         
         List<ApiParameter> parameters = apiParameterService.getParametersByApiId(apiId);
@@ -299,29 +531,41 @@ public class ApiManagementService {
         
         try {
             // 1. API 수정
-            ExternalApi updateEntity = new ExternalApi();
-            updateEntity.setApiName(updateData.getApiName());
-            updateEntity.setApiDescription(updateData.getApiDescription());
-            updateEntity.setApiUrl(updateData.getApiUrl());
-            updateEntity.setHttpMethod(updateData.getHttpMethod());
-            updateEntity.setApiIssuer(updateData.getApiIssuer());
-            updateEntity.setApiEffectiveness(updateData.getApiEffectiveness());
-                    
-            ExternalApi updatedApi = externalApiService.updateApi(apiId, updateEntity);
-            
-            // 2. 기존 파라미터 삭제 후 새 파라미터 추가
-            if (parameters != null) {
-                apiParameterService.deleteAllParametersByApiId(apiId);
-                
+            ExternalApi existingApi = externalApiRepository.findByApiId(apiId)
+                    .filter(api -> !api.getDeleted())
+                    .orElseThrow(() -> new IllegalArgumentException("API not found: " + apiId));
+
+            // 업데이트 가능한 필드들 수정
+            if (updateData.getApiName() != null) {
+                existingApi.setApiName(updateData.getApiName());
+            }
+            if (updateData.getApiDescription() != null) {
+                existingApi.setApiDescription(updateData.getApiDescription());
+            }
+            if (updateData.getApiUrl() != null) {
+                existingApi.setApiUrl(updateData.getApiUrl());
+            }
+            if (updateData.getHttpMethod() != null) {
+                existingApi.setHttpMethod(updateData.getHttpMethod());
+            }
+            if (updateData.getApiIssuer() != null) {
+                existingApi.setApiIssuer(updateData.getApiIssuer());
+            }
+
+            existingApi.setUpdatedAt(LocalDateTime.now());
+            ExternalApi updatedApi = externalApiRepository.save(existingApi);
+
+            // 2. 파라미터 수정
+            if (parameters != null && !parameters.isEmpty()) {
                 for (ApiParameter parameter : parameters) {
                     parameter.setApiId(apiId);
                     apiParameterService.saveParameter(parameter);
                 }
             }
-            
+
             log.info("Successfully updated API with {} parameters", parameters != null ? parameters.size() : 0);
             return updatedApi;
-            
+
         } catch (Exception e) {
             log.error("Failed to update API with parameters: {}", e.getMessage(), e);
             throw new RuntimeException("API update failed: " + e.getMessage(), e);
@@ -329,20 +573,23 @@ public class ApiManagementService {
     }
 
     /**
-     * API와 파라미터 함께 삭제
+     * API와 파라미터를 함께 삭제
      */
     @Transactional
     public void deleteApiWithParameters(String apiId) {
         log.info("Deleting API with parameters: {}", apiId);
         
         try {
-            // 1. 파라미터 삭제
-            apiParameterService.deleteAllParametersByApiId(apiId);
+            // 1. API 삭제 (소프트 삭제)
+            deleteApi(apiId);
             
-            // 2. API 삭제
-            externalApiService.deleteApi(apiId);
+            // 2. 파라미터 삭제 (소프트 삭제)
+            List<ApiParameter> parameters = apiParameterService.getParametersByApiId(apiId);
+            for (ApiParameter parameter : parameters) {
+                apiParameterService.deleteParameter(parameter.getParameterId());
+            }
             
-            log.info("Successfully deleted API with parameters: {}", apiId);
+            log.info("Successfully deleted API and {} parameters", parameters.size());
             
         } catch (Exception e) {
             log.error("Failed to delete API with parameters: {}", e.getMessage(), e);
@@ -357,7 +604,7 @@ public class ApiManagementService {
         log.debug("Validating API: {}", apiId);
         
         try {
-            ExternalApi api = externalApiService.getApiById(apiId)
+            ExternalApi api = getApiById(apiId)
                     .orElseThrow(() -> new IllegalArgumentException("API not found: " + apiId));
             
             List<ApiParameter> parameters = apiParameterService.getParametersByApiId(apiId);
@@ -413,7 +660,7 @@ public class ApiManagementService {
         
         try {
             // 1. 원본 API 조회
-            ExternalApi originalApi = externalApiService.getApiById(originalApiId)
+            ExternalApi originalApi = getApiById(originalApiId)
                     .orElseThrow(() -> new IllegalArgumentException("Original API not found: " + originalApiId));
             
             // 2. 새 API 생성
@@ -431,7 +678,7 @@ public class ApiManagementService {
             newApi.setCreatedAt(LocalDateTime.now());
             newApi.setUpdatedAt(LocalDateTime.now());
             
-            ExternalApi copiedApi = externalApiService.registerApi(newApi);
+            ExternalApi copiedApi = registerApi(newApi);
             
             // 3. 파라미터 복사
             List<ApiParameter> originalParameters = apiParameterService.getParametersByApiId(originalApiId);
@@ -468,10 +715,13 @@ public class ApiManagementService {
         
         try {
             // 1. 파라미터 삭제
-            apiParameterService.deleteAllParametersByApiId(apiId);
+            List<ApiParameter> parameters = apiParameterService.getParametersByApiId(apiId);
+            for (ApiParameter parameter : parameters) {
+                apiParameterService.deleteParameter(parameter.getParameterId());
+            }
             
             // 2. API 삭제
-            externalApiService.deleteApi(apiId);
+            deleteApi(apiId);
             
             log.info("Successfully deleted API: {}", apiId);
             
@@ -496,7 +746,7 @@ public class ApiManagementService {
             }
             
             // 2. API 하드 삭제
-            externalApiService.hardDeleteApi(apiId);
+            hardDeleteApi(apiId);
             
             log.info("Successfully hard deleted API: {}", apiId);
             
@@ -529,7 +779,7 @@ public class ApiManagementService {
             apis = externalApiRepository.findByApiKeywordAndDeletedFalse(apiKeyword);
         } else {
             // 검색어만으로 검색 (전체 API에서 검색)
-            apis = externalApiService.searchApis(searchTerm);
+            apis = searchApis(searchTerm);
         }
         
         // 검색어가 있는 경우 추가 필터링
@@ -562,7 +812,7 @@ public class ApiManagementService {
         
         try {
             // API 존재 여부 확인
-            ExternalApi api = externalApiService.getApiById(apiId)
+            ExternalApi api = getApiById(apiId)
                     .orElseThrow(() -> new IllegalArgumentException("API not found: " + apiId));
             
             // API 키 존재 여부 확인
@@ -595,7 +845,7 @@ public class ApiManagementService {
         log.info("API 키 연결 해제: API={}", apiId);
         
         try {
-            ExternalApi api = externalApiService.getApiById(apiId)
+            ExternalApi api = getApiById(apiId)
                     .orElseThrow(() -> new IllegalArgumentException("API not found: " + apiId));
             
             api.setApiKey(null);

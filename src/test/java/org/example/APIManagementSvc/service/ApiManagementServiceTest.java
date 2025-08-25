@@ -39,7 +39,7 @@ import org.example.APIManagementSvc.dto.ai.AiClassificationResponse;
 class ApiManagementServiceTest {
 
     @Mock
-    private ExternalApiService externalApiService;
+    private ApiManagementService apiManagementService;
 
     @Mock
     private ApiParameterService apiParameterService;

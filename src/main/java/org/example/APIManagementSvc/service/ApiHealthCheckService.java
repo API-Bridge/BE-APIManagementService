@@ -20,8 +20,8 @@ import java.util.stream.Collectors;
 
 /**
  * API 헬스체크 서비스
- * 외부 API의 상태를 확인하고 결과를 캐시에 저장합니다.
- * 정기적인 자동 헬스체크를 수행합니다.
+ * 스케줄러 기반으로 외부 API의 상태를 자동으로 확인하고 결과를 캐시에 저장합니다.
+ * ApiHealthController에서 헬스체크 결과를 조회할 수 있습니다.
  */
 @Slf4j
 @Service
@@ -30,7 +30,7 @@ public class ApiHealthCheckService {
 
     private final RedisCacheService redisCacheService;
     private final RestTemplate restTemplate;
-    private final ExternalApiService externalApiService; // API 목록 조회를 위해 추가
+    private final ApiManagementService apiManagementService;
 
     private static final String HEALTH_CHECK_CACHE_PREFIX = "api:health:";
     private static final int HEALTH_CHECK_TIMEOUT_SECONDS = 10;
@@ -44,12 +44,13 @@ public class ApiHealthCheckService {
 
     /**
      * 매 5분마다 활성 API들의 헬스체크 수행
+     * 외부에서 호출할 수 없으며 스케줄러에 의해 자동 실행됩니다.
      */
     @Scheduled(fixedRate = 5 * 60 * 1000) // 5분마다
     public void scheduledHealthCheck() {
         log.info("정기 헬스체크 시작 (5분 간격)");
         try {
-            List<ExternalApi> activeApis = externalApiService.getAllActiveApis();
+            List<ExternalApi> activeApis = apiManagementService.getAllActiveApis();
             if (!activeApis.isEmpty()) {
                 checkAllApisHealth(activeApis);
                 // 사용 불가능한 API 목록 캐시 업데이트
@@ -65,12 +66,13 @@ public class ApiHealthCheckService {
 
     /**
      * 매 30분마다 중요 API들의 상세 헬스체크 수행
+     * 외부에서 호출할 수 없으며 스케줄러에 의해 자동 실행됩니다.
      */
     @Scheduled(fixedRate = 30 * 60 * 1000) // 30분마다
     public void scheduledDetailedHealthCheck() {
         log.info("상세 헬스체크 시작 (30분 간격)");
         try {
-            List<ExternalApi> importantApis = externalApiService.getImportantApis();
+            List<ExternalApi> importantApis = apiManagementService.getImportantApis();
             if (!importantApis.isEmpty()) {
                 importantApis.parallelStream().forEach(api -> {
                     try {
@@ -91,12 +93,13 @@ public class ApiHealthCheckService {
 
     /**
      * 매일 새벽 2시에 전체 API 헬스체크 수행
+     * 외부에서 호출할 수 없으며 스케줄러에 의해 자동 실행됩니다.
      */
     @Scheduled(cron = "0 0 2 * * ?") // 매일 새벽 2시
     public void scheduledDailyHealthCheck() {
         log.info("일일 전체 헬스체크 시작");
         try {
-            List<ExternalApi> allApis = externalApiService.getAllApis();
+            List<ExternalApi> allApis = apiManagementService.getAllApis();
             if (!allApis.isEmpty()) {
                 checkAllApisHealth(allApis);
                 // 사용 불가능한 API 목록 캐시 업데이트
@@ -158,46 +161,6 @@ public class ApiHealthCheckService {
                     .build();
             
             saveHealthStatusToCache(api.getApiId(), failureResult);
-        }
-    }
-
-    // === 기존 메서드들 ===
-
-    /**
-     * API 헬스체크 수행
-     */
-    public ApiHealthStatusDto checkApiHealth(ExternalApi api) {
-        log.info("API 헬스체크 시작: {}", api.getApiName());
-        
-        try {
-            // 비동기로 헬스체크 수행
-            CompletableFuture<ApiHealthStatusDto> healthCheckFuture = CompletableFuture.supplyAsync(() -> {
-                return performHealthCheck(api);
-            });
-
-            // 타임아웃 설정
-            ApiHealthStatusDto result = healthCheckFuture.get(HEALTH_CHECK_TIMEOUT_SECONDS, TimeUnit.SECONDS);
-            
-            // 결과를 캐시에 저장
-            saveHealthStatusToCache(api.getApiId(), result);
-            
-            log.info("API 헬스체크 완료: {} - 상태: {}", api.getApiName(), result.getStatus());
-            return result;
-            
-        } catch (Exception e) {
-            log.error("API 헬스체크 실패: {} - 오류: {}", api.getApiName(), e.getMessage());
-            
-            // 실패 상태를 캐시에 저장
-            ApiHealthStatusDto failureResult = ApiHealthStatusDto.builder()
-                    .apiId(api.getApiId())
-                    .status("FAILED")
-                    .responseTime(-1)
-                    .errorMessage(e.getMessage())
-                    .checkedAt(LocalDateTime.now())
-                    .build();
-            
-            saveHealthStatusToCache(api.getApiId(), failureResult);
-            return failureResult;
         }
     }
 
@@ -293,24 +256,8 @@ public class ApiHealthCheckService {
     }
 
     /**
-     * API ID로 헬스체크 수행 (캐시 우선)
-     */
-    public ApiHealthStatusDto checkApiHealthById(String apiId) {
-        // 먼저 캐시에서 조회
-        ApiHealthStatusDto cachedStatus = getApiHealthStatusFromCache(apiId);
-        
-        if (cachedStatus != null && !isCacheExpired(cachedStatus)) {
-            log.debug("캐시된 헬스체크 결과 사용: {}", apiId);
-            return cachedStatus;
-        }
-        
-        // 캐시가 없거나 만료된 경우 새로 헬스체크 수행
-        log.debug("캐시 만료 또는 없음, 새로 헬스체크 수행: {}", apiId);
-        return null; // 실제 API 엔티티가 필요하므로 호출자가 처리
-    }
-
-    /**
      * API ID로 헬스체크 상태 조회 (공개 메서드)
+     * ApiHealthController에서 사용
      */
     public ApiHealthStatusDto getApiHealthStatus(String apiId) {
         // 먼저 캐시에서 조회
@@ -337,27 +284,17 @@ public class ApiHealthCheckService {
     }
 
     /**
-     * 특정 API의 헬스체크 강제 갱신
-     */
-    public void refreshApiHealth(ExternalApi api) {
-        log.info("API 헬스체크 강제 갱신: {}", api.getApiName());
-        
-        // 기존 캐시 삭제
-        deleteHealthStatusFromCache(api.getApiId());
-        
-        // 새로 헬스체크 수행
-        checkApiHealth(api);
-    }
-
-    /**
      * 모든 API 헬스체크 일괄 수행
+     * 스케줄러에서 사용
      */
-    public void checkAllApisHealth(List<ExternalApi> apis) {
+    private void checkAllApisHealth(List<ExternalApi> apis) {
         log.info("전체 API 헬스체크 시작: {}개", apis.size());
         
         apis.parallelStream().forEach(api -> {
             try {
-                checkApiHealth(api);
+                // 각 API에 대해 헬스체크 수행
+                ApiHealthStatusDto healthStatus = performHealthCheck(api);
+                saveHealthStatusToCache(api.getApiId(), healthStatus);
             } catch (Exception e) {
                 log.error("API 헬스체크 실패: {} - 오류: {}", api.getApiName(), e.getMessage());
             }
@@ -390,10 +327,11 @@ public class ApiHealthCheckService {
         }
     }
 
-    // === 사용 불가능한 API 목록 관리 ===
+    // === 사용 불가능한 API 목록 관리 (ApiHealthController에서 사용) ===
 
     /**
      * 캐시에서 사용 불가능한 API 목록 조회
+     * ApiHealthController에서 사용
      * 
      * @return 사용 불가능한 API ID 목록 (캐시에 없으면 빈 리스트)
      */
@@ -416,16 +354,8 @@ public class ApiHealthCheckService {
     }
 
     /**
-     * 사용 불가능한 API 개수 조회
-     * 
-     * @return 사용 불가능한 API 개수
-     */
-    public int getUnavailableApisCount() {
-        return getUnavailableApisFromCache().size();
-    }
-
-    /**
      * 특정 API가 사용 불가능한지 확인
+     * ApiHealthController에서 사용
      * 
      * @param apiId API ID
      * @return 사용 불가능 여부
@@ -433,16 +363,5 @@ public class ApiHealthCheckService {
     public boolean isApiUnavailable(String apiId) {
         List<String> unavailableApis = getUnavailableApisFromCache();
         return unavailableApis.contains(apiId);
-    }
-
-    /**
-     * 사용 불가능한 API 목록 캐시 강제 갱신
-     * 
-     * @param apis 헬스체크할 API 목록
-     */
-    public void refreshUnavailableApisCache(List<ExternalApi> apis) {
-        log.info("사용 불가능한 API 목록 캐시 강제 갱신 시작");
-        updateUnavailableApisCache(apis);
-        log.info("사용 불가능한 API 목록 캐시 강제 갱신 완료");
     }
 }

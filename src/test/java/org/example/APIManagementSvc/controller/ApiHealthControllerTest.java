@@ -4,7 +4,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import org.example.APIManagementSvc.domain.Entity.ExternalApi;
 import org.example.APIManagementSvc.dto.cache.ApiHealthStatusDto;
 import org.example.APIManagementSvc.service.ApiHealthCheckService;
-import org.example.APIManagementSvc.service.ExternalApiService;
+import org.example.APIManagementSvc.service.ApiManagementService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -37,7 +37,7 @@ class ApiHealthControllerTest {
     private ApiHealthCheckService apiHealthCheckService;
 
     @Mock
-    private ExternalApiService externalApiService;
+    private ApiManagementService apiManagementService;
 
     private ExternalApi testApi;
     private ApiHealthStatusDto testHealthStatus;
@@ -46,7 +46,7 @@ class ApiHealthControllerTest {
     void setUp() {
         MockitoAnnotations.openMocks(this);
         
-        ApiHealthController controller = new ApiHealthController(apiHealthCheckService, externalApiService);
+        ApiHealthController controller = new ApiHealthController(apiHealthCheckService, apiManagementService);
         mockMvc = MockMvcBuilders.standaloneSetup(controller)
                 .build();
         
@@ -78,7 +78,7 @@ class ApiHealthControllerTest {
     @DisplayName("특정 API 헬스체크 강제 갱신")
     void refreshApiHealth() throws Exception {
         // given
-        when(externalApiService.getApiById("test-api-001"))
+        when(apiManagementService.getApiById("test-api-001"))
                 .thenReturn(java.util.Optional.of(testApi));
         when(apiHealthCheckService.getApiHealthStatus("test-api-001"))
                 .thenReturn(testHealthStatus);
@@ -124,7 +124,7 @@ class ApiHealthControllerTest {
     void getHealthSummaryByDomain() throws Exception {
         // given
         List<ExternalApi> apis = Arrays.asList(testApi);
-        when(externalApiService.searchApis(contains("도메인:WEATHER")))
+        when(apiManagementService.searchApis(contains("도메인:WEATHER")))
                 .thenReturn(apis);
         when(apiHealthCheckService.getApiHealthStatus("test-api-001"))
                 .thenReturn(testHealthStatus);
@@ -141,7 +141,7 @@ class ApiHealthControllerTest {
     void getAllApiHealthStatus() throws Exception {
         // given
         List<ExternalApi> apis = Arrays.asList(testApi);
-        when(externalApiService.getAllActiveApis()).thenReturn(apis);
+        when(apiManagementService.getAllActiveApis()).thenReturn(apis);
         when(apiHealthCheckService.getApiHealthStatus("test-api-001"))
                 .thenReturn(testHealthStatus);
 
@@ -202,7 +202,7 @@ class ApiHealthControllerTest {
     void refreshUnavailableApisCache() throws Exception {
         // given
         List<ExternalApi> apis = Arrays.asList(testApi);
-        when(externalApiService.getAllActiveApis()).thenReturn(apis);
+        when(apiManagementService.getAllActiveApis()).thenReturn(apis);
 
         // when & then
         mockMvc.perform(post("/api-health/health/unavailable/refresh"))
