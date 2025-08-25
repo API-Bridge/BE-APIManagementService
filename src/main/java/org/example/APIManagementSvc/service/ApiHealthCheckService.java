@@ -44,6 +44,9 @@ public class ApiHealthCheckService {
     
     /** HTTP 요청을 위한 REST 클라이언트 */
     private final RestTemplate restTemplate;
+    
+    /** 헬스체크 실패 API Redis 캐시 관리 서비스 */
+    private final ApiHealthCacheService apiHealthCacheService;
 
     /**
      * 전체 API에 대한 정기 헬스체크 스케줄러
@@ -222,10 +225,12 @@ public class ApiHealthCheckService {
      * API 헬스 상태 업데이트
      * 
      * 헬스체크 결과를 바탕으로 API의 헬스 상태와 마지막 체크 시간을 DB에 반영
+     * 실패한 API는 Redis 캐시에 저장하고, 정상화된 API는 캐시에서 제거
      * 
-     * 업데이트 내용:
-     * - healthStatus: 헬스체크 결과 상태
-     * - lastHealthCheck: 현재 시간으로 체크 시각 기록
+     * 처리 로직:
+     * 1. DB에 헬스 상태 업데이트
+     * 2. UNHEALTHY → Redis 캐시에 저장 (TTL: 1시간)
+     * 3. HEALTHY → Redis 캐시에서 제거
      * 
      * @param apiId 업데이트할 API 식별자
      * @param healthStatus 새로운 헬스 상태
@@ -234,12 +239,61 @@ public class ApiHealthCheckService {
     public void updateHealthStatus(String apiId, ExternalApiSpec.HealthStatus healthStatus) {
         ExternalApiSpec apiSpec = externalApiSpecRepository.findById(apiId).orElse(null);
         if (apiSpec != null) {
+            ExternalApiSpec.HealthStatus previousStatus = apiSpec.getHealthStatus();
+            
             // 헬스 상태 및 체크 시간 업데이트
             apiSpec.setHealthStatus(healthStatus);
             apiSpec.setLastHealthCheck(LocalDateTime.now());
             
             // 변경 내용 DB 저장
             externalApiSpecRepository.save(apiSpec);
+            
+            // Redis 캐시 관리
+            handleHealthStatusCache(apiSpec, previousStatus, healthStatus);
+        }
+    }
+    
+    /**
+     * 헬스 상태 변경에 따른 Redis 캐시 관리
+     * 
+     * 헬스 상태 변화에 따라 Redis 캐시를 적절히 관리
+     * 
+     * 캐시 관리 로직:
+     * - HEALTHY → UNHEALTHY: Redis에 실패 API 정보 캐시 (TTL: 1시간)
+     * - UNHEALTHY → HEALTHY: Redis에서 API 정보 제거
+     * - UNKNOWN → UNHEALTHY: Redis에 실패 API 정보 캐시
+     * - UNKNOWN → HEALTHY: 캐시 작업 없음
+     * 
+     * @param apiSpec API 명세 정보
+     * @param previousStatus 이전 헬스 상태
+     * @param currentStatus 현재 헬스 상태
+     */
+    private void handleHealthStatusCache(ExternalApiSpec apiSpec, 
+                                       ExternalApiSpec.HealthStatus previousStatus,
+                                       ExternalApiSpec.HealthStatus currentStatus) {
+        try {
+            // API가 실패 상태로 변경된 경우
+            if (currentStatus == ExternalApiSpec.HealthStatus.UNHEALTHY) {
+                // 이전에 정상이었거나 미확인 상태였다면 캐시에 추가
+                if (previousStatus != ExternalApiSpec.HealthStatus.UNHEALTHY) {
+                    apiHealthCacheService.cacheUnhealthyApi(apiSpec);
+                    log.warn("API became unhealthy, cached in Redis: {} ({})", 
+                            apiSpec.getApiName(), apiSpec.getApiId());
+                }
+            }
+            // API가 정상 상태로 복구된 경우
+            else if (currentStatus == ExternalApiSpec.HealthStatus.HEALTHY) {
+                // 이전에 실패 상태였다면 캐시에서 제거
+                if (previousStatus == ExternalApiSpec.HealthStatus.UNHEALTHY) {
+                    apiHealthCacheService.removeHealthyApi(apiSpec.getApiId());
+                    log.info("API recovered to healthy, removed from Redis cache: {} ({})", 
+                            apiSpec.getApiName(), apiSpec.getApiId());
+                }
+            }
+            
+        } catch (Exception e) {
+            log.error("Failed to manage health status cache for API: {} ({})", 
+                     apiSpec.getApiName(), apiSpec.getApiId(), e);
         }
     }
 
