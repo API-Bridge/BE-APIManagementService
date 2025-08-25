@@ -339,34 +339,106 @@ API 이름을 기반으로 상세 정보를 조회합니다.
 API를 검색합니다. 이름, 설명, URL, 도메인, 키워드 등을 포함한 통합 검색이 가능합니다.
 
 **Query Parameters:**
-- `q` (required): 검색어
-- `page` (optional): 페이지 번호 (기본값: 0)
-- `size` (optional): 페이지 크기 (기본값: 20)
+- `domain` (optional): 도메인 필터 (예: GOVERNMENT, WEATHER, FINANCE)
+- `keyword` (optional): 키워드 필터 (예: API_DOCUMENT, DATA_ANALYSIS)
+- `searchTerm` (optional): 일반 검색어 (이름, 설명, URL 등)
+
+**Response:**
+```json
+{
+  "success": true,
+  "data": [
+    {
+      "api": {
+        "apiId": "API_ID",
+        "apiName": "API_이름",
+        "apiUrl": "https://api.example.com/endpoint",
+        "apiDomain": "GOVERNMENT",
+        "apiKeyword": "API_DOCUMENT"
+      },
+      "parameters": [
+        {
+          "paramName": "파라미터명",
+          "paramType": "STRING",
+          "isRequired": true,
+          "defaultValue": "기본값"
+        }
+      ]
+    }
+  ],
+  "message": "검색 결과 10개를 찾았습니다."
+}
+```
+
+### 2.5 벌크 검색 (Bulk Search)
+**POST** `/external-apis/bulk-search`
+
+다중 도메인과 키워드를 이용한 벌크 검색을 수행합니다. 복잡한 검색 조건을 한 번에 처리할 수 있습니다.
+
+**Request Body:**
+```json
+{
+  "domains": ["GOVERNMENT", "WEATHER", "FINANCE"],
+  "keywords": ["API_DOCUMENT", "DATA_ANALYSIS", "REAL_TIME"]
+}
+```
 
 **Response:**
 ```json
 {
   "success": true,
   "data": {
-    "content": [
-      {
-        "apiId": "API_ID",
-        "apiName": "API_이름",
-        "apiUrl": "https://api.example.com/endpoint",
-        "apiDomain": "GOVERNMENT",
-        "apiKeyword": "API_DOCUMENT",
-        "status": "ACTIVE"
-      }
-    ],
-    "page": 0,
-    "size": 20,
-    "totalElements": 10,
-    "totalPages": 1
-  }
+    "totalCount": 25,
+    "summary": {
+      "requestedDomains": 3,
+      "requestedKeywords": 3,
+      "matchedCombinations": 9,
+      "totalApis": 25
+    },
+    "results": {
+      "GOVERNMENT-API_DOCUMENT": [
+        {
+          "api": {
+            "apiId": "API_001",
+            "apiName": "정부 API 문서",
+            "apiDomain": "GOVERNMENT",
+            "apiKeyword": "API_DOCUMENT"
+          },
+          "parameters": [
+            {
+              "paramName": "serviceKey",
+              "paramType": "STRING",
+              "isRequired": true
+            }
+          ]
+        }
+      ],
+      "WEATHER-DATA_ANALYSIS": [
+        {
+          "api": {
+            "apiId": "API_002",
+            "apiName": "날씨 데이터 분석",
+            "apiDomain": "WEATHER",
+            "apiKeyword": "DATA_ANALYSIS"
+          },
+          "parameters": [
+            {
+              "paramName": "location",
+              "paramType": "STRING",
+              "isRequired": true
+            }
+          ]
+        }
+      ]
+    }
+  },
+  "message": "벌크 검색 완료: 9개 조합에서 총 25개의 API를 찾았습니다."
 }
 ```
 
-### 2.5 API 수정
+**Rate Limit:** 1시간에 최대 500회 (벌크 검색은 제한적)
+
+### 2.6 API 수정
 **PUT** `/external-apis/update/{apiId}`
 
 API 정보를 수정합니다.
@@ -393,7 +465,7 @@ API 정보를 수정합니다.
 }
 ```
 
-### 2.6 API 삭제
+### 2.7 API 삭제
 **DELETE** `/external-apis/delete/{apiId}`
 
 API를 삭제합니다 (소프트 삭제).
@@ -867,10 +939,10 @@ Rate Limiting 캐시를 정리합니다.
 
 ## 12. 요약
 
-**총 엔드포인트 수: 35개**
+**총 엔드포인트 수: 36개**
 
 - **API 키 관리**: 9개
-- **External API 관리**: 11개  
+- **External API 관리**: 12개 (벌크 검색 추가)
 - **API 헬스체크**: 3개
 - **Rate Limiting 테스트**: 6개
 - **로그 수집**: 6개
