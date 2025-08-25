@@ -50,7 +50,7 @@ public class ApiCredential {
     @OneToMany(mappedBy = "credential", cascade = CascadeType.ALL, fetch = FetchType.LAZY)
     private List<ExternalApiSpec> apiSpecs;
 
-    @OneToOne(mappedBy = "credential", cascade = CascadeType.ALL, fetch = FetchType.LAZY)
+    @OneToOne(mappedBy = "credential", cascade = CascadeType.ALL)
     private ApiToken token;
 
     @PrePersist

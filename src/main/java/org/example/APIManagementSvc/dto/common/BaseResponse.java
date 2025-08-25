@@ -44,18 +44,7 @@ public class BaseResponse<T> {
     /** 응답 생성 시각 */
     @Builder.Default
     private LocalDateTime timestamp = LocalDateTime.now();
-    
-    /**
-     * 성공 응답 생성 (데이터 포함)
-     */
-    public static <T> BaseResponse<T> success(T data) {
-        return BaseResponse.<T>builder()
-                .success(true)
-                .message("요청이 성공적으로 처리되었습니다")
-                .data(data)
-                .build();
-    }
-    
+
     /**
      * 성공 응답 생성 (커스텀 메시지, 데이터 포함)
      */
@@ -66,18 +55,7 @@ public class BaseResponse<T> {
                 .data(data)
                 .build();
     }
-    
-    /**
-     * 실패 응답 생성 (메시지만)
-     */
-    public static <T> BaseResponse<T> failure(String message) {
-        return BaseResponse.<T>builder()
-                .success(false)
-                .message(message)
-                .data(null)
-                .build();
-    }
-    
+
     /**
      * 실패 응답 생성 (메시지와 데이터)
      */
@@ -86,6 +64,16 @@ public class BaseResponse<T> {
                 .success(false)
                 .message(message)
                 .data(data)
+                .build();
+    }
+
+    /**
+     * 에러 응답 생성 (에러 코드와 메시지)
+     */
+    public static <T> BaseResponse<T> error(String errorCode, String message) {
+        return BaseResponse.<T>builder()
+                .success(false)
+                .message(message + " [" + errorCode + "]")
                 .build();
     }
 }

@@ -68,4 +68,26 @@ public interface ExternalApiSpecRepository extends JpaRepository<ExternalApiSpec
            "LEFT JOIN FETCH a.keyword k " +
            "WHERE a.isActive = true")
     List<ExternalApiSpec> findAllActiveWithRelations();
+    
+    /**
+     * 활성화된 API 명세들만 조회 (헬스체크용)
+     * @return 활성화된 API 명세 목록
+     */
+    List<ExternalApiSpec> findByIsActiveTrue();
+    
+    /**
+     * 특정 헬스 상태의 API 명세들 조회
+     * @param healthStatus 헬스 상태
+     * @return 해당 헬스 상태의 API 명세 목록
+     */
+    List<ExternalApiSpec> findByHealthStatus(ExternalApiSpec.HealthStatus healthStatus);
+    
+    /**
+     * 헬스체크가 필요한 API들 조회 (자격증명 정보 포함)
+     * @return 헬스체크 대상 API 목록
+     */
+    @Query("SELECT a FROM ExternalApiSpec a " +
+           "LEFT JOIN FETCH a.credential c " +
+           "WHERE a.isActive = true")
+    List<ExternalApiSpec> findActiveApisWithCredentials();
 }

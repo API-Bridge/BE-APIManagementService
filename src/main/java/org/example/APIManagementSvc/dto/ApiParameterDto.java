@@ -7,7 +7,6 @@ import lombok.NoArgsConstructor;
 
 /**
  * API 파라미터 정보 전달용 DTO
- * 
  * 외부 API의 파라미터 정보를 클라이언트와 서버 간에 전달할 때 사용
  * 각 API마다 파라미터의 개수와 타입이 다르므로 유연한 구조로 설계
  * 
