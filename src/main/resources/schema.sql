@@ -99,7 +99,7 @@ CREATE TABLE api_tokens (
 -- ============================================
 -- API 데이터 요청 반환용 View 테이블
 -- ============================================
-CREATE OR REPLACE VIEW api_request_details AS
+CREATE OR REPLACE VIEW v_api_request_details AS
 SELECT
     spec.api_id,
     spec.api_name,

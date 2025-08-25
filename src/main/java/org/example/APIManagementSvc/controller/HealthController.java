@@ -56,6 +56,6 @@ public class HealthController {
         status.put("javaVersion", System.getProperty("java.version"));
         status.put("javaVendor", System.getProperty("java.vendor"));
         
-        return BaseResponse.success(status, "Service is healthy");
+        return BaseResponse.success("Service is healthy", status);
     }
 }

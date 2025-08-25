@@ -8,81 +8,84 @@ import lombok.NoArgsConstructor;
 import java.time.LocalDateTime;
 
 /**
- * API 응답의 공통 반환 형식을 정의하는 제네릭 클래스
- * 모든 API 엔드포인트에서 일관된 응답 구조를 제공
+ * 공통 API 응답 래퍼 클래스
  * 
- * 주요 기능:
- * - 성공/실패 상태 플래그 제공
- * - 일반적인 메시지 및 데이터 필드
- * - 응답 시간 타임스탬프 자동 기록
- * - 정적 팩토리 메소드를 통한 간편한 응답 생성
+ * 모든 REST API 응답을 일관된 형태로 제공하기 위한 래퍼 클래스
+ * 성공/실패 여부, 메시지, 데이터를 표준화된 형식으로 반환
  * 
- * @param <T> 응답 데이터의 타입
+ * 응답 구조:
+ * {
+ *   "success": true,
+ *   "message": "요청이 성공적으로 처리되었습니다",
+ *   "data": { ... },
+ *   "timestamp": "2023-12-01T10:30:00"
+ * }
+ * 
+ * @param <T> 응답 데이터 타입
+ * @author API Bridge Team
+ * @since 1.0
  */
 @Data
-@Builder
 @NoArgsConstructor
 @AllArgsConstructor
+@Builder
 public class BaseResponse<T> {
-    /** API 요청 성공 여부 */
-    private boolean success;
+    
+    /** 요청 처리 성공 여부 */
+    @Builder.Default
+    private boolean success = true;
     
     /** 응답 메시지 */
     private String message;
     
-    /** 응답 데이터 */
+    /** 실제 응답 데이터 */
     private T data;
     
     /** 응답 생성 시각 */
-    private LocalDateTime timestamp;
-
+    @Builder.Default
+    private LocalDateTime timestamp = LocalDateTime.now();
+    
     /**
-     * 성공 응답을 생성하는 정적 팩토리 메소드
-     * 주어진 데이터를 포함하여 성공 응답을 생성
-     * 
-     * @param data 응답에 포함할 데이터
-     * @param <T> 데이터 타입
-     * @return 성공 응답 객체
+     * 성공 응답 생성 (데이터 포함)
      */
     public static <T> BaseResponse<T> success(T data) {
         return BaseResponse.<T>builder()
                 .success(true)
-                .message("Success")
+                .message("요청이 성공적으로 처리되었습니다")
                 .data(data)
-                .timestamp(LocalDateTime.now())
                 .build();
     }
-
+    
     /**
-     * 커스텀 메시지와 데이터를 포함한 성공 응답을 생성
-     * 
-     * @param data 응답에 포함할 데이터
-     * @param message 커스텀 성공 메시지
-     * @param <T> 데이터 타입
-     * @return 성공 응답 객체
+     * 성공 응답 생성 (커스텀 메시지, 데이터 포함)
      */
-    public static <T> BaseResponse<T> success(T data, String message) {
+    public static <T> BaseResponse<T> success(String message, T data) {
         return BaseResponse.<T>builder()
                 .success(true)
                 .message(message)
                 .data(data)
-                .timestamp(LocalDateTime.now())
                 .build();
     }
-
+    
     /**
-     * 오류 응답을 생성하는 정적 팩토리 메소드
-     * 오류 메시지만 포함하고 데이터는 null로 설정
-     * 
-     * @param message 오류 메시지
-     * @param <T> 데이터 타입
-     * @return 오류 응답 객체
+     * 실패 응답 생성 (메시지만)
      */
-    public static <T> BaseResponse<T> error(String message) {
+    public static <T> BaseResponse<T> failure(String message) {
         return BaseResponse.<T>builder()
                 .success(false)
                 .message(message)
-                .timestamp(LocalDateTime.now())
+                .data(null)
+                .build();
+    }
+    
+    /**
+     * 실패 응답 생성 (메시지와 데이터)
+     */
+    public static <T> BaseResponse<T> failure(String message, T data) {
+        return BaseResponse.<T>builder()
+                .success(false)
+                .message(message)
+                .data(data)
                 .build();
     }
 }
