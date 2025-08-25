@@ -9,10 +9,6 @@ spring:
     properties:
       hibernate:
         format_sql: true
-        
-  h2:
-    console:
-      enabled: true
       
   kafka:
     consumer:

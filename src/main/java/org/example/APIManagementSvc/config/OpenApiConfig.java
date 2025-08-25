@@ -1,12 +1,9 @@
 package org.example.APIManagementSvc.config;
 
-import io.swagger.v3.oas.models.Components;
 import io.swagger.v3.oas.models.OpenAPI;
 import io.swagger.v3.oas.models.info.Contact;
 import io.swagger.v3.oas.models.info.Info;
 import io.swagger.v3.oas.models.info.License;
-import io.swagger.v3.oas.models.security.SecurityRequirement;
-import io.swagger.v3.oas.models.security.SecurityScheme;
 import io.swagger.v3.oas.models.servers.Server;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
@@ -21,7 +18,6 @@ import java.util.List;
  * 주요 기능:
  * - API 문서 메타데이터 설정 (제목, 버전, 설명, 연락처 등)
  * - 다중 환경 서버 설정 (로컬, 개발, 운영)
- * - JWT Bearer 토큰 인증 스키마 설정
  * - OpenAPI 스펙 기반 자동 문서 생성
  */
 @Configuration
@@ -51,13 +47,6 @@ public class OpenApiConfig {
                 new Server().url("https://api.dev.yourservice.com" + contextPath).description("Development server"),
                 new Server().url("https://api.yourservice.com" + contextPath).description("Production server")
             ))
-            .addSecurityItem(new SecurityRequirement().addList("bearerAuth"))
-            .components(new Components()
-                .addSecuritySchemes("bearerAuth", new SecurityScheme()
-                    .name("bearerAuth")
-                    .type(SecurityScheme.Type.HTTP)
-                    .scheme("bearer")
-                    .bearerFormat("JWT")
-                    .description("JWT Authorization header using the Bearer scheme.")));
+;
     }
 }
