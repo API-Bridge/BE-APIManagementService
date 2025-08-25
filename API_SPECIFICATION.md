@@ -3,8 +3,8 @@
 ## 개요
 API Management Service는 외부 API의 등록, 관리, 모니터링, 인증 등을 제공하는 서비스입니다.
 
-**Base URL**: `/api/v1`  
-**Context Path**: `/api/v1`
+**Base URL**: `/`  
+**Context Path**: 없음 (직접 경로 사용)
 
 ---
 

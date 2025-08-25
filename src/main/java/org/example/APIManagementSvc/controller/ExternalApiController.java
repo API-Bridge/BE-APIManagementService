@@ -368,39 +368,36 @@ public class ExternalApiController {
         
         try {
             // 서비스 레이어에서 벌크 검색 수행
-            var searchResults = apiManagementService.searchApisWithParameters(
-                request.getDomains().get(0), // 첫 번째 도메인 사용
-                request.getKeywords().get(0), // 첫 번째 키워드 사용
-                null
-            );
+            ApiManagementService.BulkSearchResult result = apiManagementService
+                    .performBulkSearch(request.getDomains(), request.getKeywords());
             
-            // 결과를 BulkSearchResponse 형태로 변환
+            // 서비스 결과를 컨트롤러 응답 DTO로 변환
             Map<String, List<ApiWithParametersResponse>> responseResults = new HashMap<>();
             
-            // 도메인-키워드 조합별로 그룹핑
-            String key = request.getDomains().get(0) + "-" + request.getKeywords().get(0);
-            List<ApiWithParametersResponse> responses = searchResults.stream()
-                    .map(this::convertToApiWithParametersResponse)
-                    .collect(Collectors.toList());
-            responseResults.put(key, responses);
+            result.getResults().forEach((key, apisWithParameters) -> {
+                List<ApiWithParametersResponse> responses = apisWithParameters.stream()
+                        .map(this::convertToApiWithParametersResponse)
+                        .collect(Collectors.toList());
+                responseResults.put(key, responses);
+            });
             
             // 응답 구성
             BulkSearchResponse.SearchSummary summary = BulkSearchResponse.SearchSummary.builder()
-                    .requestedDomains(request.getDomains().size())
-                    .requestedKeywords(request.getKeywords().size())
-                    .matchedCombinations(1) // 현재는 단순화
-                    .totalApis(responses.size())
+                    .requestedDomains(result.getSummary().getRequestedDomains())
+                    .requestedKeywords(result.getSummary().getRequestedKeywords())
+                    .matchedCombinations(result.getSummary().getMatchedCombinations())
+                    .totalApis(result.getSummary().getTotalApis())
                     .build();
             
             BulkSearchResponse response = BulkSearchResponse.builder()
-                    .totalCount(responses.size())
+                    .totalCount(result.getTotalCount())
                     .summary(summary)
                     .results(responseResults)
                     .build();
             
             return ResponseEntity.ok(ApiResponse.success(response, 
                     String.format("벌크 검색 완료: %d개 조합에서 총 %d개의 API를 찾았습니다.", 
-                    summary.getMatchedCombinations(), response.getTotalCount())));
+                    result.getSummary().getMatchedCombinations(), result.getTotalCount())));
                     
         } catch (Exception e) {
             log.error("Failed to perform bulk search: {}", e.getMessage(), e);
