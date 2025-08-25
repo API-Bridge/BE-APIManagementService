@@ -68,6 +68,13 @@ aws:
   secretsmanager:
     region: ${AWS_REGION:ap-northeast-2}
 
+# Gemini API 설정
+gemini:
+  api:
+    key: ${GEMINI_API_KEY:}
+    model: ${GEMINI_MODEL:gemini-2.0-flash-exp}
+    timeout: ${GEMINI_TIMEOUT:30s}
+
 # Circuit Breaker 설정 (Resilience4j)
 resilience4j:
   circuitbreaker:

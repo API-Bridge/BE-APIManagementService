@@ -33,7 +33,10 @@ dependencies {
     implementation 'org.springframework.boot:spring-boot-starter-web'
     implementation 'org.springframework.boot:spring-boot-starter-data-jpa'
     implementation 'org.springframework.boot:spring-boot-starter-actuator'
-    
+
+    //Gemini API 의존성
+    implementation 'com.google.genai:google-genai:1.0.0'
+
     // Microservice Communication & Resilience
     implementation 'org.springframework.cloud:spring-cloud-starter-circuitbreaker-resilience4j'
     implementation 'org.springframework.cloud:spring-cloud-starter-openfeign'     // 서비스 간 통신
