@@ -15,6 +15,7 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -348,24 +349,6 @@ public class ExternalApiSpecService {
     }
 
     /**
-     * 도메인과 키워드를 함께 사용하여 외부 API 명세들 조회 (ID 기반)
-     * 
-     * 특정 도메인 내에서 특정 키워드에 해당하는 API들을 정확하게 필터링
-     * 예시: 금융(도메인) + 주식가격(키워드) = 주식 관련 금융 API만 조회
-     * 
-     * @param domainId 도메인 ID
-     * @param keywordId 키워드 ID
-     * @return 해당 도메인과 키워드 조건에 매칭되는 API 명세 목록
-     */
-    public List<ExternalApiSpecResponseDto> getExternalApiSpecsByDomainAndKeyword(Integer domainId, Integer keywordId) {
-        log.info("Getting external API specs by domain: {} and keyword: {}", domainId, keywordId);
-        
-        return externalApiSpecRepository.findByDomainAndKeywordWithAllRelations(domainId, keywordId).stream()
-                .map(this::convertToResponseDto)
-                .collect(Collectors.toList());
-    }
-
-    /**
      * 도메인 이름으로 외부 API 명세들 조회
      *
      * @param domainName 도메인 이름 (예: "finance", "weather", "news")
@@ -408,6 +391,61 @@ public class ExternalApiSpecService {
         
         return externalApiSpecRepository.findByDomainNameAndKeywordNameWithAllRelations(domainName, keywordName).stream()
                 .map(this::convertToResponseDto)
+                .collect(Collectors.toList());
+    }
+
+    /**
+     * 다중 도메인과 키워드 이름을 사용하여 외부 API 명세들 검색
+     * 
+     * 여러 도메인과 키워드 조합을 통해 API를 검색
+     * 도메인과 키워드가 모두 제공된 경우 AND 조건으로 필터링
+     * 
+     * @param domains 도메인 이름 목록 (선택사항)
+     * @param keywords 키워드 이름 목록 (선택사항)
+     * @return 검색 조건에 매칭되는 API 명세 목록
+     */
+    public List<ExternalApiSpecResponseDto> searchExternalApiSpecsByNames(List<String> domains, List<String> keywords) {
+        log.info("Searching external API specs with domains: {} and keywords: {}", domains, keywords);
+        
+        List<ExternalApiSpecResponseDto> results = new ArrayList<>();
+        
+        // 도메인과 키워드 모두 제공된 경우
+        if (domains != null && !domains.isEmpty() && keywords != null && !keywords.isEmpty()) {
+            for (String domain : domains) {
+                for (String keyword : keywords) {
+                    List<ExternalApiSpecResponseDto> specs = getExternalApiSpecsByDomainAndKeywordName(domain, keyword);
+                    results.addAll(specs);
+                }
+            }
+        }
+        // 도메인만 제공된 경우
+        else if (domains != null && !domains.isEmpty()) {
+            for (String domain : domains) {
+                List<ExternalApiSpecResponseDto> specs = getExternalApiSpecsByDomainName(domain);
+                results.addAll(specs);
+            }
+        }
+        // 키워드만 제공된 경우
+        else if (keywords != null && !keywords.isEmpty()) {
+            for (String keyword : keywords) {
+                List<ExternalApiSpecResponseDto> specs = getExternalApiSpecsByKeywordName(keyword);
+                results.addAll(specs);
+            }
+        }
+        // 조건이 없는 경우 전체 활성 API 반환
+        else {
+            results = getAllActiveExternalApiSpecs();
+        }
+        
+        // 중복 제거 (API ID 기준)
+        return results.stream()
+                .collect(Collectors.toMap(
+                    ExternalApiSpecResponseDto::getApiId,
+                    dto -> dto,
+                    (existing, replacement) -> existing
+                ))
+                .values()
+                .stream()
                 .collect(Collectors.toList());
     }
 

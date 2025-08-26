@@ -183,43 +183,28 @@ public class ExternalApiSpecController {
      * -
      * 도메인 이름과 키워드 이름을 쿼리 파라미터로 전달하여 API 검색
      * 사용자 친화적인 이름을 사용한 RESTful한 복합 조건 검색 지원
+     * 단일 및 다중 값 모두 지원
      * -
      * 사용 예시:
-     * - GET /api/external-api-specs/search-by-name?domainName=finance&keywordName=stock_price
-     * - GET /api/external-api-specs/search-by-name?domainName=weather (키워드 없이 도메인만)
-     * - GET /api/external-api-specs/search-by-name?keywordName=current_weather (도메인 없이 키워드만)
+     * - GET /api/external-api-specs/search-by-name?domains=finance&keywords=stock_price
+     * - GET /api/external-api-specs/search-by-name?domains=weather,finance&keywords=current_weather,stock_price
+     * - GET /api/external-api-specs/search-by-name?domains=weather (키워드 없이 도메인만)
+     * - GET /api/external-api-specs/search-by-name?keywords=current_weather (도메인 없이 키워드만)
      * 
-     * @param domainName 도메인 이름 (Query Parameter, 선택사항)
-     * @param keywordName 키워드 이름 (Query Parameter, 선택사항)
+     * @param domains 도메인 이름 리스트 (Query Parameter, 선택사항)
+     * @param keywords 키워드 이름 리스트 (Query Parameter, 선택사항)
      * @return 검색 조건에 매칭되는 API 명세 목록 (200 OK)
      */
     @Operation(summary = "외부 API 명세 검색 (이름 기반)", 
-               description = "도메인 이름과 키워드 이름을 사용하여 외부 API 명세들을 검색합니다. 조건은 선택적으로 사용 가능합니다.")
+               description = "도메인 이름과 키워드 이름을 사용하여 외부 API 명세들을 검색합니다. 단일 또는 다중 조건 모두 지원합니다.")
     @GetMapping("/search-by-name")
     public ResponseEntity<List<ExternalApiSpecResponseDto>> searchExternalApiSpecsByName(
-            @Parameter(description = "도메인 이름 (선택사항)", example = "finance") @RequestParam(required = false) String domainName,
-            @Parameter(description = "키워드 이름 (선택사항)", example = "stock_price") @RequestParam(required = false) String keywordName) {
+            @Parameter(description = "도메인 이름 (선택사항, 다중 값 지원)", example = "finance,weather") @RequestParam(required = false) List<String> domains,
+            @Parameter(description = "키워드 이름 (선택사항, 다중 값 지원)", example = "stock_price,current_weather") @RequestParam(required = false) List<String> keywords) {
         
-        log.info("Searching external API specs with domainName: {} and keywordName: {}", domainName, keywordName);
+        log.info("다음 기준으로 외부API를 검색합니다. domains: {} and keywords: {}", domains, keywords);
         
-        List<ExternalApiSpecResponseDto> response;
-        
-        // 도메인과 키워드 모두 제공된 경우
-        if (domainName != null && keywordName != null) {
-            response = externalApiSpecService.getExternalApiSpecsByDomainAndKeywordName(domainName, keywordName);
-        } 
-        // 도메인만 제공된 경우
-        else if (domainName != null) {
-            response = externalApiSpecService.getExternalApiSpecsByDomainName(domainName);
-        }
-        // 키워드만 제공된 경우
-        else if (keywordName != null) {
-            response = externalApiSpecService.getExternalApiSpecsByKeywordName(keywordName);
-        }
-        // 조건이 없는 경우 전체 활성 API 반환
-        else {
-            response = externalApiSpecService.getAllActiveExternalApiSpecs();
-        }
+        List<ExternalApiSpecResponseDto> response = externalApiSpecService.searchExternalApiSpecsByNames(domains, keywords);
         
         return ResponseEntity.ok(response);
     }
