@@ -136,4 +136,11 @@ public interface ExternalApiSpecRepository extends JpaRepository<ExternalApiSpec
            "AND a.keyword.keywordName = :keywordName")
     List<ExternalApiSpec> findByDomainNameAndKeywordNameWithAllRelations(@Param("domainName") String domainName, 
                                                                         @Param("keywordName") String keywordName);
+    
+    /**
+     * API URL 중복 검증을 위한 조회
+     * @param apiUrl API URL
+     * @return 해당 URL이 존재하는지 여부
+     */
+    boolean existsByApiUrl(String apiUrl);
 }

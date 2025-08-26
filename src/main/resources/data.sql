@@ -84,9 +84,9 @@ INSERT INTO external_api_specs (api_id, api_name, api_description, api_issuer, a
 ('weather-air-quality-001', '대기질 조회', '현재 대기질 지수를 제공하는 API', 'OpenWeatherMap', 'https://api.openweathermap.org/data/2.5/air_pollution', 'GET', true, 'UNKNOWN', '/health', 'weather-service-001', 2, 9, NOW(), NOW()),
 
 -- 금융 관련 API
-('finance-stock-001', '실시간 주식 가격', '실시간 주식 가격 정보를 제공하는 API', 'Alpha Vantage', 'https://www.alphavantage.co/query', 'GET', true, 'HEALTHY', '/status', 'finance-service-001', 1, 1, NOW(), NOW()),
-('finance-exchange-001', '환율 정보 조회', '실시간 환율 정보를 제공하는 API', 'Alpha Vantage', 'https://www.alphavantage.co/query', 'GET', true, 'HEALTHY', '/status', 'finance-service-001', 1, 3, NOW(), NOW()),
-('finance-crypto-001', '암호화폐 가격 조회', '주요 암호화폐 실시간 가격을 제공하는 API', 'Alpha Vantage', 'https://www.alphavantage.co/query', 'GET', true, 'UNHEALTHY', '/status', 'finance-service-001', 1, 4, NOW(), NOW()),
+('finance-stock-001', '실시간 주식 가격', '실시간 주식 가격 정보를 제공하는 API', 'Alpha Vantage', 'https://www.alphavantage.co/query?function=TIME_SERIES_INTRADAY', 'GET', true, 'HEALTHY', '/status', 'finance-service-001', 1, 1, NOW(), NOW()),
+('finance-exchange-001', '환율 정보 조회', '실시간 환율 정보를 제공하는 API', 'Alpha Vantage', 'https://www.alphavantage.co/query?function=FX_INTRADAY', 'GET', true, 'HEALTHY', '/status', 'finance-service-001', 1, 3, NOW(), NOW()),
+('finance-crypto-001', '암호화폐 가격 조회', '주요 암호화폐 실시간 가격을 제공하는 API', 'Alpha Vantage', 'https://www.alphavantage.co/query?function=CRYPTO_INTRADAY', 'GET', true, 'UNHEALTHY', '/status', 'finance-service-001', 1, 4, NOW(), NOW()),
 
 -- 뉴스 관련 API
 ('news-breaking-001', '속보 뉴스 조회', '최신 속보 뉴스를 제공하는 API', 'NewsAPI', 'https://newsapi.org/v2/top-headlines', 'GET', true, 'HEALTHY', '/ping', 'news-service-001', 3, 13, NOW(), NOW()),

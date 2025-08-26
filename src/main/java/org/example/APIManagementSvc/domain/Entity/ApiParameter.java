@@ -9,6 +9,7 @@ import org.hibernate.annotations.JdbcTypeCode;
 import org.hibernate.type.SqlTypes;
 
 import java.time.LocalDateTime;
+import java.util.UUID;
 
 @Entity
 @Table(name = "api_parameters")
@@ -56,6 +57,9 @@ public class ApiParameter {
 
     @PrePersist
     protected void onCreate() {
+        if (parameterId == null) {
+            parameterId = UUID.randomUUID().toString();
+        }
         createdAt = LocalDateTime.now();
         updatedAt = LocalDateTime.now();
     }

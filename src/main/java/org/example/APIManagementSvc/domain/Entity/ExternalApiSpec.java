@@ -8,6 +8,7 @@ import lombok.NoArgsConstructor;
 
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.UUID;
 
 @Entity
 @Table(name = "external_api_specs")
@@ -31,7 +32,7 @@ public class ExternalApiSpec {
     @Column(name = "api_issuer", nullable = false)
     private String apiIssuer;
 
-    @Column(name = "api_url", nullable = false, length = 500)
+    @Column(name = "api_url", nullable = false, length = 500, unique = true)
     private String apiUrl;
 
     @Column(name = "http_method", nullable = false, length = 10)
@@ -90,6 +91,9 @@ public class ExternalApiSpec {
 
     @PrePersist
     protected void onCreate() {
+        if (apiId == null) {
+            apiId = UUID.randomUUID().toString();
+        }
         createdAt = LocalDateTime.now();
         updatedAt = LocalDateTime.now();
     }

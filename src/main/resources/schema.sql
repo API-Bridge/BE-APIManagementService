@@ -54,12 +54,12 @@ CREATE TABLE api_credentials (
 -- 테이블 이름을 명확히 하고, 중복 컬럼 제거 및 정규화
 -- ============================================
 CREATE TABLE external_api_specs (
-                                    api_id VARCHAR(36) PRIMARY KEY COMMENT '외부 API 고유 식별자',
+                                    api_id VARCHAR(36) PRIMARY KEY COMMENT '외부 API 고유 식별자 (UUID)',
                                     credential_id VARCHAR(100) NOT NULL COMMENT 'API 호출 시 사용할 자격증명 ID (FK)',
                                     api_name VARCHAR(255) NOT NULL COMMENT 'API 이름 (예: 현재 날씨 조회)',
                                     api_description TEXT COMMENT 'API에 대한 상세 설명',
                                     api_issuer VARCHAR(255) NOT NULL COMMENT 'API 발급처',
-                                    api_url VARCHAR(500) NOT NULL COMMENT 'API Endpoint URL',
+                                    api_url VARCHAR(500) NOT NULL UNIQUE COMMENT 'API Endpoint URL (중복 등록 방지)',
                                     http_method VARCHAR(10) NOT NULL COMMENT 'HTTP 메소드 (GET, POST 등)',
                                     domain_id INT UNSIGNED COMMENT 'API 분류 도메인 ID (FK)',
                                     keyword_id INT UNSIGNED COMMENT 'API 세부 키워드 ID (FK)',
@@ -79,7 +79,7 @@ CREATE TABLE external_api_specs (
 -- 5. API 파라미터 정보
 -- ============================================
 CREATE TABLE api_parameters (
-                                parameter_id VARCHAR(36) PRIMARY KEY COMMENT '파라미터 고유 식별자',
+                                parameter_id VARCHAR(36) PRIMARY KEY COMMENT '파라미터 고유 식별자 (UUID)',
                                 api_id VARCHAR(36) NOT NULL COMMENT '이 파라미터가 속한 API의 ID (FK)',
                                 param_name VARCHAR(255) NOT NULL COMMENT '파라미터 이름',
                                 param_type VARCHAR(50) NOT NULL COMMENT '파라미터 데이터 타입 (string, integer 등)',
