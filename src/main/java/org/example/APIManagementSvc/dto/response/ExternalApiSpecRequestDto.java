@@ -16,8 +16,7 @@ import java.util.List;
 @Builder
 public class ExternalApiSpecRequestDto {
     
-    @NotBlank(message = "API ID는 필수입니다")
-    private String apiId;
+    private String apiId; // UUID로 자동 생성됨 (사용자 입력 불필요)
     
     @NotBlank(message = "API 이름은 필수입니다")
     private String apiName;

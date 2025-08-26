@@ -15,7 +15,7 @@ import lombok.experimental.SuperBuilder;
 @EqualsAndHashCode(callSuper = true)
 public class ExternalApiRegisteredEvent extends BaseEvent {
     
-    private Long apiId;
+    private String apiId;
     private String apiName;
     private String apiUrl;
     private String apiDescription;
@@ -23,7 +23,7 @@ public class ExternalApiRegisteredEvent extends BaseEvent {
     private String version;
     private String registeredBy;
     
-    public ExternalApiRegisteredEvent(Long apiId, String apiName, String apiUrl, 
+    public ExternalApiRegisteredEvent(String apiId, String apiName, String apiUrl, 
                                     String apiDescription, String category, 
                                     String version, String registeredBy) {
         super("EXTERNAL_API_REGISTERED");

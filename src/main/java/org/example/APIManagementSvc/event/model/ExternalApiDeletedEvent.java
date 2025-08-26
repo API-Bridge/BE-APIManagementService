@@ -15,13 +15,13 @@ import lombok.experimental.SuperBuilder;
 @EqualsAndHashCode(callSuper = true)
 public class ExternalApiDeletedEvent extends BaseEvent {
     
-    private Long apiId;
+    private String apiId;
     private String apiName;
     private String apiUrl;
     private String deletedBy;
     private String deletionReason;
     
-    public ExternalApiDeletedEvent(Long apiId, String apiName, String apiUrl,
+    public ExternalApiDeletedEvent(String apiId, String apiName, String apiUrl,
                                  String deletedBy, String deletionReason) {
         super("EXTERNAL_API_DELETED");
         this.apiId = apiId;

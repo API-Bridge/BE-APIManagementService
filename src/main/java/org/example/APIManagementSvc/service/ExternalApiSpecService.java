@@ -125,9 +125,19 @@ public class ExternalApiSpecService {
             }
         }
 
+        // API ID 자동 생성 (사용자가 제공하지 않은 경우 또는 항상)
+        String generatedApiId = (requestDto.getApiId() != null && !requestDto.getApiId().trim().isEmpty()) 
+            ? requestDto.getApiId() 
+            : UUID.randomUUID().toString();
+        
+        // 중복 체크
+        while (externalApiSpecRepository.existsById(generatedApiId)) {
+            generatedApiId = UUID.randomUUID().toString();
+        }
+
         // ExternalApiSpec 생성
         ExternalApiSpec apiSpec = ExternalApiSpec.builder()
-                .apiId(requestDto.getApiId())
+                .apiId(generatedApiId)
                 .apiName(requestDto.getApiName())
                 .apiDescription(requestDto.getApiDescription())
                 .apiIssuer(requestDto.getApiIssuer())
@@ -161,7 +171,7 @@ public class ExternalApiSpecService {
 
         // 외부 API 등록 이벤트 발행
         ExternalApiRegisteredEvent event = new ExternalApiRegisteredEvent(
-                Long.parseLong(savedApiSpec.getApiId()),
+                savedApiSpec.getApiId(),
                 savedApiSpec.getApiName(),
                 savedApiSpec.getApiUrl(),
                 savedApiSpec.getApiDescription(),
@@ -313,7 +323,7 @@ public class ExternalApiSpecService {
         
         // 외부 API 삭제 이벤트 발행
         ExternalApiDeletedEvent event = new ExternalApiDeletedEvent(
-                Long.parseLong(apiSpec.getApiId()),
+                apiSpec.getApiId(),
                 apiSpec.getApiName(),
                 apiSpec.getApiUrl(),
                 "system", // 삭제자 기본값
