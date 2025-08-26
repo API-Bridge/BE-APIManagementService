@@ -90,4 +90,50 @@ public interface ExternalApiSpecRepository extends JpaRepository<ExternalApiSpec
            "LEFT JOIN FETCH a.credential c " +
            "WHERE a.isActive = true")
     List<ExternalApiSpec> findActiveApisWithCredentials();
+
+    /**
+     * 도메인과 키워드로 외부 API 명세들 조회 (관련 엔티티 포함, 성능 최적화)
+     * @param domainId 도메인 ID
+     * @param keywordId 키워드 ID
+     * @return 해당 도메인과 키워드에 매칭되는 API 명세 목록 (관련 엔티티 포함)
+     */
+    @Query("SELECT a FROM ExternalApiSpec a " +
+           "LEFT JOIN FETCH a.credential c " +
+           "LEFT JOIN FETCH a.domain d " +
+           "LEFT JOIN FETCH a.keyword k " +
+           "LEFT JOIN FETCH a.parameters p " +
+           "WHERE a.domain.domainId = :domainId " +
+           "AND a.keyword.keywordId = :keywordId")
+    List<ExternalApiSpec> findByDomainAndKeywordWithAllRelations(@Param("domainId") Integer domainId, 
+                                                                @Param("keywordId") Integer keywordId);
+
+    /**
+     * 도메인 이름으로 외부 API 명세들 조회
+     * @param domainName 도메인 이름
+     * @return 해당 도메인의 API 명세 목록
+     */
+    List<ExternalApiSpec> findByDomain_DomainName(String domainName);
+
+    /**
+     * 키워드 이름으로 외부 API 명세들 조회
+     * @param keywordName 키워드 이름
+     * @return 해당 키워드의 API 명세 목록
+     */
+    List<ExternalApiSpec> findByKeyword_KeywordName(String keywordName);
+
+    /**
+     * 도메인 이름과 키워드 이름으로 외부 API 명세들 조회 (관련 엔티티 포함, 성능 최적화)
+     * @param domainName 도메인 이름
+     * @param keywordName 키워드 이름
+     * @return 해당 도메인과 키워드에 매칭되는 API 명세 목록 (관련 엔티티 포함)
+     */
+    @Query("SELECT a FROM ExternalApiSpec a " +
+           "LEFT JOIN FETCH a.credential c " +
+           "LEFT JOIN FETCH a.domain d " +
+           "LEFT JOIN FETCH a.keyword k " +
+           "LEFT JOIN FETCH a.parameters p " +
+           "WHERE a.domain.domainName = :domainName " +
+           "AND a.keyword.keywordName = :keywordName")
+    List<ExternalApiSpec> findByDomainNameAndKeywordNameWithAllRelations(@Param("domainName") String domainName, 
+                                                                        @Param("keywordName") String keywordName);
 }

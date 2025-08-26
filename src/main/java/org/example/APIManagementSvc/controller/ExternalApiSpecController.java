@@ -100,49 +100,127 @@ public class ExternalApiSpecController {
         return ResponseEntity.ok(response);
     }
 
+
+
+
     /**
-     * 도메인별 외부 API 명세 조회
+     * 도메인 이름별 외부 API 명세 조회
      * -
-     * 특정 도메인에 속한 모든 외부 API를 조회
-     * 도메인별로 API를 분류하여 관리할 때 사용
+     * 특정 도메인 이름에 속한 모든 외부 API를 조회
+     * 사용자 친화적인 도메인 이름으로 API를 분류하여 관리할 때 사용
      * -
      * 사용 예시:
-     * - 날씨 도메인의 모든 API (현재날씨, 일기예보, 기상특보)
-     * - 교통 도메인의 모든 API (실시간 교통정보, 대중교통 정보)
+     * - finance 도메인의 모든 API (주식, 환율, 암호화폐 등)
+     * - weather 도메인의 모든 API (현재날씨, 일기예보, 대기질 등)
      * 
-     * @param domainId 도메인 ID (Path Variable)
+     * @param domainName 도메인 이름 (Path Variable)
      * @return 해당 도메인의 API 명세 목록 (200 OK)
      */
-    @Operation(summary = "도메인별 외부 API 명세 조회", description = "특정 도메인에 속한 외부 API 명세들을 조회합니다.")
-    @GetMapping("/by-domain/{domainId}")
-    public ResponseEntity<List<ExternalApiSpecResponseDto>> getExternalApiSpecsByDomain(
-            @Parameter(description = "도메인 ID", required = true) @PathVariable Integer domainId) {
-        log.info("Getting external API specs by domain: {}", domainId);
+    @Operation(summary = "도메인 이름별 외부 API 명세 조회", 
+               description = "특정 도메인 이름에 속한 외부 API 명세들을 조회합니다.")
+    @GetMapping("/by-domain-name/{domainName}")
+    public ResponseEntity<List<ExternalApiSpecResponseDto>> getExternalApiSpecsByDomainName(
+            @Parameter(description = "도메인 이름", example = "finance", required = true) @PathVariable String domainName) {
+        log.info("Getting external API specs by domain name: {}", domainName);
         
-        List<ExternalApiSpecResponseDto> response = externalApiSpecService.getExternalApiSpecsByDomain(domainId);
+        List<ExternalApiSpecResponseDto> response = externalApiSpecService.getExternalApiSpecsByDomainName(domainName);
         return ResponseEntity.ok(response);
     }
 
     /**
-     * 키워드별 외부 API 명세 조회
+     * 키워드 이름별 외부 API 명세 조회
      * -
-     * 특정 키워드에 속한 모든 외부 API를 조회
-     * 세부 키워드별로 더 정확한 API 분류가 필요할 때 사용
+     * 특정 키워드 이름에 속한 모든 외부 API를 조회
+     * 사용자 친화적인 키워드 이름으로 더 정확한 API 분류가 필요할 때 사용
      * -
      * 사용 예시:
-     * - current_weather 키워드의 모든 API
      * - stock_price 키워드의 모든 API
+     * - current_weather 키워드의 모든 API
      * 
-     * @param keywordId 키워드 ID (Path Variable)
+     * @param keywordName 키워드 이름 (Path Variable)
      * @return 해당 키워드의 API 명세 목록 (200 OK)
      */
-    @Operation(summary = "키워드별 외부 API 명세 조회", description = "특정 키워드에 속한 외부 API 명세들을 조회합니다.")
-    @GetMapping("/by-keyword/{keywordId}")
-    public ResponseEntity<List<ExternalApiSpecResponseDto>> getExternalApiSpecsByKeyword(
-            @Parameter(description = "키워드 ID", required = true) @PathVariable Integer keywordId) {
-        log.info("Getting external API specs by keyword: {}", keywordId);
+    @Operation(summary = "키워드 이름별 외부 API 명세 조회", 
+               description = "특정 키워드 이름에 속한 외부 API 명세들을 조회합니다.")
+    @GetMapping("/by-keyword-name/{keywordName}")
+    public ResponseEntity<List<ExternalApiSpecResponseDto>> getExternalApiSpecsByKeywordName(
+            @Parameter(description = "키워드 이름", example = "stock_price", required = true) @PathVariable String keywordName) {
+        log.info("Getting external API specs by keyword name: {}", keywordName);
         
-        List<ExternalApiSpecResponseDto> response = externalApiSpecService.getExternalApiSpecsByKeyword(keywordId);
+        List<ExternalApiSpecResponseDto> response = externalApiSpecService.getExternalApiSpecsByKeywordName(keywordName);
+        return ResponseEntity.ok(response);
+    }
+
+    /**
+     * 도메인 이름과 키워드 이름을 함께 사용한 외부 API 명세 조회
+     * -
+     * 특정 도메인 이름 내에서 특정 키워드 이름에 해당하는 API들을 정확하게 필터링
+     * 사용자 친화적인 이름을 사용하여 더 직관적인 API 검색 제공
+     * -
+     * 사용 예시:
+     * - finance + stock_price = 주식 관련 금융 API만 조회
+     * - weather + current_weather = 현재 날씨 API만 조회
+     * - transport + subway = 지하철 관련 교통 API만 조회
+     * 
+     * @param domainName 도메인 이름 (Path Variable)
+     * @param keywordName 키워드 이름 (Path Variable)
+     * @return 해당 도메인과 키워드 조건에 매칭되는 API 명세 목록 (200 OK)
+     */
+    @Operation(summary = "도메인+키워드 이름별 외부 API 명세 조회", 
+               description = "특정 도메인 이름 내에서 특정 키워드 이름에 해당하는 외부 API 명세들을 정확하게 조회합니다.")
+    @GetMapping("/by-domain-name/{domainName}/keyword-name/{keywordName}")
+    public ResponseEntity<List<ExternalApiSpecResponseDto>> getExternalApiSpecsByDomainAndKeywordName(
+            @Parameter(description = "도메인 이름", example = "finance", required = true) @PathVariable String domainName,
+            @Parameter(description = "키워드 이름", example = "stock_price", required = true) @PathVariable String keywordName) {
+        log.info("Getting external API specs by domain name: {} and keyword name: {}", domainName, keywordName);
+        
+        List<ExternalApiSpecResponseDto> response = externalApiSpecService.getExternalApiSpecsByDomainAndKeywordName(domainName, keywordName);
+        return ResponseEntity.ok(response);
+    }
+
+    /**
+     * 쿼리 파라미터를 사용한 외부 API 명세 검색 (이름 기반)
+     * -
+     * 도메인 이름과 키워드 이름을 쿼리 파라미터로 전달하여 API 검색
+     * 사용자 친화적인 이름을 사용한 RESTful한 복합 조건 검색 지원
+     * -
+     * 사용 예시:
+     * - GET /api/external-api-specs/search-by-name?domainName=finance&keywordName=stock_price
+     * - GET /api/external-api-specs/search-by-name?domainName=weather (키워드 없이 도메인만)
+     * - GET /api/external-api-specs/search-by-name?keywordName=current_weather (도메인 없이 키워드만)
+     * 
+     * @param domainName 도메인 이름 (Query Parameter, 선택사항)
+     * @param keywordName 키워드 이름 (Query Parameter, 선택사항)
+     * @return 검색 조건에 매칭되는 API 명세 목록 (200 OK)
+     */
+    @Operation(summary = "외부 API 명세 검색 (이름 기반)", 
+               description = "도메인 이름과 키워드 이름을 사용하여 외부 API 명세들을 검색합니다. 조건은 선택적으로 사용 가능합니다.")
+    @GetMapping("/search-by-name")
+    public ResponseEntity<List<ExternalApiSpecResponseDto>> searchExternalApiSpecsByName(
+            @Parameter(description = "도메인 이름 (선택사항)", example = "finance") @RequestParam(required = false) String domainName,
+            @Parameter(description = "키워드 이름 (선택사항)", example = "stock_price") @RequestParam(required = false) String keywordName) {
+        
+        log.info("Searching external API specs with domainName: {} and keywordName: {}", domainName, keywordName);
+        
+        List<ExternalApiSpecResponseDto> response;
+        
+        // 도메인과 키워드 모두 제공된 경우
+        if (domainName != null && keywordName != null) {
+            response = externalApiSpecService.getExternalApiSpecsByDomainAndKeywordName(domainName, keywordName);
+        } 
+        // 도메인만 제공된 경우
+        else if (domainName != null) {
+            response = externalApiSpecService.getExternalApiSpecsByDomainName(domainName);
+        }
+        // 키워드만 제공된 경우
+        else if (keywordName != null) {
+            response = externalApiSpecService.getExternalApiSpecsByKeywordName(keywordName);
+        }
+        // 조건이 없는 경우 전체 활성 API 반환
+        else {
+            response = externalApiSpecService.getAllActiveExternalApiSpecs();
+        }
+        
         return ResponseEntity.ok(response);
     }
 }

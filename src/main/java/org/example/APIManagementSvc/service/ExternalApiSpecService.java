@@ -338,25 +338,65 @@ public class ExternalApiSpecService {
     }
 
     /**
-     * 특정 도메인에 속한 외부 API 명세들 조회
+     * 도메인과 키워드를 함께 사용하여 외부 API 명세들 조회 (ID 기반)
+     * 
+     * 특정 도메인 내에서 특정 키워드에 해당하는 API들을 정확하게 필터링
+     * 예시: 금융(도메인) + 주식가격(키워드) = 주식 관련 금융 API만 조회
      * 
      * @param domainId 도메인 ID
-     * @return 해당 도메인의 API 명세 목록
+     * @param keywordId 키워드 ID
+     * @return 해당 도메인과 키워드 조건에 매칭되는 API 명세 목록
      */
-    public List<ExternalApiSpecResponseDto> getExternalApiSpecsByDomain(Integer domainId) {
-        return externalApiSpecRepository.findByDomain_DomainId(domainId).stream()
+    public List<ExternalApiSpecResponseDto> getExternalApiSpecsByDomainAndKeyword(Integer domainId, Integer keywordId) {
+        log.info("Getting external API specs by domain: {} and keyword: {}", domainId, keywordId);
+        
+        return externalApiSpecRepository.findByDomainAndKeywordWithAllRelations(domainId, keywordId).stream()
                 .map(this::convertToResponseDto)
                 .collect(Collectors.toList());
     }
 
     /**
-     * 특정 키워드에 속한 외부 API 명세들 조회
-     * 
-     * @param keywordId 키워드 ID
+     * 도메인 이름으로 외부 API 명세들 조회
+     *
+     * @param domainName 도메인 이름 (예: "finance", "weather", "news")
+     * @return 해당 도메인의 API 명세 목록
+     */
+    public List<ExternalApiSpecResponseDto> getExternalApiSpecsByDomainName(String domainName) {
+        log.info("Getting external API specs by domain name: {}", domainName);
+
+        return externalApiSpecRepository.findByDomain_DomainName(domainName).stream()
+                .map(this::convertToResponseDto)
+                .collect(Collectors.toList());
+    }
+
+    /**
+     * 키워드 이름으로 외부 API 명세들 조회
+     *
+     * @param keywordName 키워드 이름 (예: "stock_price", "current_weather", "breaking_news")
      * @return 해당 키워드의 API 명세 목록
      */
-    public List<ExternalApiSpecResponseDto> getExternalApiSpecsByKeyword(Integer keywordId) {
-        return externalApiSpecRepository.findByKeyword_KeywordId(keywordId).stream()
+    public List<ExternalApiSpecResponseDto> getExternalApiSpecsByKeywordName(String keywordName) {
+        log.info("Getting external API specs by keyword name: {}", keywordName);
+
+        return externalApiSpecRepository.findByKeyword_KeywordName(keywordName).stream()
+                .map(this::convertToResponseDto)
+                .collect(Collectors.toList());
+    }
+
+    /**
+     * 도메인 이름과 키워드 이름을 함께 사용하여 외부 API 명세들 조회
+     * 
+     * 특정 도메인 내에서 특정 키워드에 해당하는 API들을 정확하게 필터링
+     * 예시: finance + stock_price = 주식 관련 금융 API만 조회
+     * 
+     * @param domainName 도메인 이름 (예: "finance", "weather", "news")
+     * @param keywordName 키워드 이름 (예: "stock_price", "current_weather", "breaking_news")
+     * @return 해당 도메인과 키워드 조건에 매칭되는 API 명세 목록
+     */
+    public List<ExternalApiSpecResponseDto> getExternalApiSpecsByDomainAndKeywordName(String domainName, String keywordName) {
+        log.info("Getting external API specs by domain name: {} and keyword name: {}", domainName, keywordName);
+        
+        return externalApiSpecRepository.findByDomainNameAndKeywordNameWithAllRelations(domainName, keywordName).stream()
                 .map(this::convertToResponseDto)
                 .collect(Collectors.toList());
     }
