@@ -16,8 +16,7 @@ public class EventTypeFilter {
     public static class ExternalApiRegisteredEventFilter implements RecordFilterStrategy<String, Object> {
         @Override
         public boolean filter(ConsumerRecord<String, Object> consumerRecord) {
-            if (consumerRecord.value() instanceof BaseEvent) {
-                BaseEvent event = (BaseEvent) consumerRecord.value();
+            if (consumerRecord.value() instanceof BaseEvent event) {
                 return !"EXTERNAL_API_REGISTERED".equals(event.getEventType());
             }
             return true; // BaseEvent가 아닌 경우 필터링
@@ -28,8 +27,7 @@ public class EventTypeFilter {
     public static class ExternalApiDeletedEventFilter implements RecordFilterStrategy<String, Object> {
         @Override
         public boolean filter(ConsumerRecord<String, Object> consumerRecord) {
-            if (consumerRecord.value() instanceof BaseEvent) {
-                BaseEvent event = (BaseEvent) consumerRecord.value();
+            if (consumerRecord.value() instanceof BaseEvent event) {
                 return !"EXTERNAL_API_DELETED".equals(event.getEventType());
             }
             return true; // BaseEvent가 아닌 경우 필터링
@@ -40,9 +38,19 @@ public class EventTypeFilter {
     public static class ExternalApiHealthCheckEventFilter implements RecordFilterStrategy<String, Object> {
         @Override
         public boolean filter(ConsumerRecord<String, Object> consumerRecord) {
-            if (consumerRecord.value() instanceof BaseEvent) {
-                BaseEvent event = (BaseEvent) consumerRecord.value();
+            if (consumerRecord.value() instanceof BaseEvent event) {
                 return !"EXTERNAL_API_HEALTH_CHECK".equals(event.getEventType());
+            }
+            return true; // BaseEvent가 아닌 경우 필터링
+        }
+    }
+
+    @Component("externalApiCallFailedEventFilter")
+    public static class ExternalApiCallFailedEventFilter implements RecordFilterStrategy<String, Object> {
+        @Override
+        public boolean filter(ConsumerRecord<String, Object> consumerRecord) {
+            if (consumerRecord.value() instanceof BaseEvent event) {
+                return !"EXTERNAL_API_CALL_FAILED".equals(event.getEventType());
             }
             return true; // BaseEvent가 아닌 경우 필터링
         }

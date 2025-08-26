@@ -421,6 +421,42 @@ public class ApiHealthCheckService {
     }
 
     /**
+     * 특정 API에 대한 즉시 헬스체크 수행
+     * 외부 API 호출 실패 이벤트 발생 시 호출되어 해당 API의 상태를 즉시 확인
+     * 
+     * @param apiId 헬스체크를 수행할 API 식별자
+     */
+    public void performImmediateHealthCheck(String apiId) {
+        try {
+            log.info("Triggering immediate health check for API ID: {}", apiId);
+            
+            // API 명세 조회
+            ExternalApiSpec apiSpec = externalApiSpecRepository.findById(apiId).orElse(null);
+            
+            if (apiSpec == null) {
+                log.warn("API not found for immediate health check: {}", apiId);
+                return;
+            }
+            
+            if (!apiSpec.getIsActive()) {
+                log.warn("API is inactive, skipping immediate health check: {} ({})", 
+                        apiSpec.getApiName(), apiId);
+                return;
+            }
+            
+            log.info("Starting immediate health check for API: {} ({})", apiSpec.getApiName(), apiId);
+            
+            // 기존 performHealthCheckAsync 메소드 재활용
+            performHealthCheckAsync(apiSpec);
+            
+            log.info("Immediate health check triggered for API: {} ({})", apiSpec.getApiName(), apiId);
+                    
+        } catch (Exception e) {
+            log.error("Error triggering immediate health check for API ID: {}", apiId, e);
+        }
+    }
+
+    /**
      * 헬스체크 이벤트를 Kafka로 발행
      * 
      * @param apiSpec API 명세

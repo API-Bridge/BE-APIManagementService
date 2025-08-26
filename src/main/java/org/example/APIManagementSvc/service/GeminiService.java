@@ -32,23 +32,8 @@ public class GeminiService {
             throw new RuntimeException("Failed to generate text using Gemini API", e);
         }
     }
-    
-    public String classifyApiContent(String apiName, String apiDescription, String apiUrl) {
-        String prompt = String.format(
-            "Classify the following API and provide a category classification:\n\n" +
-            "API Name: %s\n" +
-            "API Description: %s\n" +
-            "API URL: %s\n\n" +
-            "Please classify this API into one of the following categories: " +
-            "Data, Payment, Social, Communication, Analytics, AI/ML, E-commerce, Government, Weather, Maps, Finance, News, Other. " +
-            "Provide only the category name as the response.",
-            apiName, apiDescription, apiUrl
-        );
-        
-        return generateText(prompt);
-    }
-    
-    public String classifyApiWithContext(String apiName, String apiDescription, String apiUrl, 
+
+    public String classifyApiWithContext(String apiName, String apiDescription, String apiUrl,
                                        String existingDomains, String existingKeywords) {
         String prompt = String.format(
             "기존 도메인 목록: [%s]\n" +
@@ -69,17 +54,5 @@ public class GeminiService {
         
         return generateText(prompt);
     }
-    
-    public String analyzeApiSecurity(String apiUrl, String apiDescription) {
-        String prompt = String.format(
-            "Analyze the security aspects of the following API:\n\n" +
-            "API URL: %s\n" +
-            "API Description: %s\n\n" +
-            "Please provide a security assessment including potential risks and recommendations. " +
-            "Keep the response concise and professional.",
-            apiUrl, apiDescription
-        );
-        
-        return generateText(prompt);
-    }
+
 }

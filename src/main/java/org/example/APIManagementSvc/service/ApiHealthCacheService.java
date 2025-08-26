@@ -180,25 +180,7 @@ public class ApiHealthCacheService {
         
         /** 마지막 헬스체크 시간 */
         private LocalDateTime lastHealthCheck;
-        
-        /**
-         * 실패 경과 시간 계산
-         * @return String 실패 후 경과 시간 (예: "30분 전", "2시간 전")
-         */
-        public String getFailedDuration() {
-            if (failedAt == null) return "알 수 없음";
-            
-            Duration duration = Duration.between(failedAt, LocalDateTime.now());
-            long hours = duration.toHours();
-            long minutes = duration.toMinutes() % 60;
-            
-            if (hours > 0) {
-                return hours + "시간 " + (minutes > 0 ? minutes + "분 " : "") + "전";
-            } else {
-                return minutes + "분 전";
-            }
-        }
-        
+
         /**
          * 실패 시각을 포맷된 문자열로 반환
          * @return String 포맷된 실패 시각

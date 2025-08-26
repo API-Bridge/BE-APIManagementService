@@ -6,7 +6,6 @@ import org.example.APIManagementSvc.domain.Entity.ApiDomain;
 import org.example.APIManagementSvc.domain.Entity.ApiKeyword;
 import org.example.APIManagementSvc.dto.ApiDomainDto;
 import org.example.APIManagementSvc.dto.ApiKeywordDto;
-import org.example.APIManagementSvc.dto.ApiKeywordRequestDto;
 import org.example.APIManagementSvc.repository.ApiDomainRepository;
 import org.example.APIManagementSvc.repository.ApiKeywordRepository;
 import org.springframework.data.domain.Page;
