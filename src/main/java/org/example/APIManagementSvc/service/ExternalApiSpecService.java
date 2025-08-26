@@ -6,6 +6,9 @@ import org.example.APIManagementSvc.domain.Entity.*;
 import org.example.APIManagementSvc.dto.*;
 import org.example.APIManagementSvc.dto.response.ExternalApiSpecRequestDto;
 import org.example.APIManagementSvc.dto.response.ExternalApiSpecResponseDto;
+import org.example.APIManagementSvc.event.model.ExternalApiDeletedEvent;
+import org.example.APIManagementSvc.event.model.ExternalApiRegisteredEvent;
+import org.example.APIManagementSvc.event.publisher.EventPublisher;
 import org.example.APIManagementSvc.repository.*;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -13,6 +16,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 import java.util.stream.Collectors;
 
@@ -47,6 +51,8 @@ public class ExternalApiSpecService {
     private final ApiCredentialRepository apiCredentialRepository;
     private final ApiDomainRepository apiDomainRepository;
     private final ApiKeywordRepository apiKeywordRepository;
+    private final GeminiService geminiService;
+    private final EventPublisher eventPublisher;
 
     /**
      * 새로운 외부 API 명세 등록
@@ -67,15 +73,56 @@ public class ExternalApiSpecService {
                 .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 자격증명 ID: " + requestDto.getCredentialId()));
         
         ApiDomain domain = null;
+        ApiKeyword keyword = null;
+        
         if (requestDto.getDomainId() != null) {
             domain = apiDomainRepository.findById(requestDto.getDomainId())
                     .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 도메인 ID: " + requestDto.getDomainId()));
         }
         
-        ApiKeyword keyword = null;
         if (requestDto.getKeywordId() != null) {
             keyword = apiKeywordRepository.findById(requestDto.getKeywordId())
                     .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 키워드 ID: " + requestDto.getKeywordId()));
+        }
+        
+        // Gemini AI를 이용한 자동 분류 (domain 또는 keyword가 null인 경우)
+        if (domain == null || keyword == null) {
+            try {
+                // 기존 도메인과 키워드 목록 조회
+                List<ApiDomain> existingDomains = apiDomainRepository.findAll();
+                List<ApiKeyword> existingKeywords = apiKeywordRepository.findAll();
+                
+                String domainNames = existingDomains.stream()
+                    .map(ApiDomain::getDomainName)
+                    .collect(Collectors.joining(", "));
+                
+                String keywordNames = existingKeywords.stream()
+                    .map(ApiKeyword::getKeywordName)
+                    .collect(Collectors.joining(", "));
+                
+                String classificationResult = geminiService.classifyApiWithContext(
+                    requestDto.getApiName(),
+                    requestDto.getApiDescription(),
+                    requestDto.getApiUrl(),
+                    domainNames,
+                    keywordNames
+                );
+                
+                log.info("Gemini classification result: {}", classificationResult);
+                
+                // 분류 결과 파싱 및 domain/keyword 찾기/생성
+                if (domain == null) {
+                    domain = findOrCreateDomain(classificationResult, existingDomains);
+                }
+                
+                if (keyword == null) {
+                    keyword = findOrCreateKeyword(classificationResult, existingKeywords, domain);
+                }
+                
+            } catch (Exception e) {
+                log.warn("Failed to classify API using Gemini AI: {}", e.getMessage());
+                // AI 분류 실패 시 기본값 설정 또는 null로 유지
+            }
         }
 
         // ExternalApiSpec 생성
@@ -112,8 +159,22 @@ public class ExternalApiSpecService {
             apiParameterRepository.saveAll(parameters);
         }
 
+        // 외부 API 등록 이벤트 발행
+        ExternalApiRegisteredEvent event = new ExternalApiRegisteredEvent(
+                Long.parseLong(savedApiSpec.getApiId()),
+                savedApiSpec.getApiName(),
+                savedApiSpec.getApiUrl(),
+                savedApiSpec.getApiDescription(),
+                domain != null ? domain.getDomainName() : null,
+                "1.0", // 버전 기본값
+                "system" // 등록자 기본값
+        );
+        eventPublisher.publishEvent("external_api_events", event);
+        log.info("Published External API Registered Event for API: {}", savedApiSpec.getApiName());
+
         return convertToResponseDto(savedApiSpec);
     }
+
 
     /**
      * 외부 API 명세 단건 상세 조회
@@ -150,7 +211,7 @@ public class ExternalApiSpecService {
      * @return 활성화된 API 명세 목록
      */
     public List<ExternalApiSpecResponseDto> getAllActiveExternalApiSpecs() {
-        log.info("Getting all active external API specs");
+        log.info("활성화된 모든 외부 API 명세 조회");
         
         return externalApiSpecRepository.findAllActiveWithRelations().stream()
                 .map(this::convertToResponseDto)
@@ -167,7 +228,7 @@ public class ExternalApiSpecService {
      */
     @Transactional
     public ExternalApiSpecResponseDto updateExternalApiSpec(String apiId, ExternalApiSpecUpdateDto updateDto) {
-        log.info("Updating external API spec with id: {}", apiId);
+        log.info("ID로 외부API 명세 수정: {}", apiId);
         
         ExternalApiSpec apiSpec = externalApiSpecRepository.findById(apiId)
                 .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 API ID: " + apiId));
@@ -247,9 +308,19 @@ public class ExternalApiSpecService {
     public void deleteExternalApiSpec(String apiId) {
         log.info("Deleting external API spec with id: {}", apiId);
         
-        if (!externalApiSpecRepository.existsById(apiId)) {
-            throw new IllegalArgumentException("존재하지 않는 API ID: " + apiId);
-        }
+        ExternalApiSpec apiSpec = externalApiSpecRepository.findById(apiId)
+                .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 API ID: " + apiId));
+        
+        // 외부 API 삭제 이벤트 발행
+        ExternalApiDeletedEvent event = new ExternalApiDeletedEvent(
+                Long.parseLong(apiSpec.getApiId()),
+                apiSpec.getApiName(),
+                apiSpec.getApiUrl(),
+                "system", // 삭제자 기본값
+                "Manual deletion" // 삭제 사유 기본값
+        );
+        eventPublisher.publishEvent("external_api_events", event);
+        log.info("Published External API Deleted Event for API: {}", apiSpec.getApiName());
         
         externalApiSpecRepository.deleteById(apiId);
     }
@@ -288,6 +359,98 @@ public class ExternalApiSpecService {
         return externalApiSpecRepository.findByKeyword_KeywordId(keywordId).stream()
                 .map(this::convertToResponseDto)
                 .collect(Collectors.toList());
+    }
+
+    /**
+     * Gemini AI 분류 결과를 파싱하여 도메인 찾기/생성
+     * 
+     * @param classificationResult Gemini AI 분류 결과
+     * @param existingDomains 기존 도메인 목록
+     * @return 찾거나 생성된 ApiDomain
+     */
+    private ApiDomain findOrCreateDomain(String classificationResult, List<ApiDomain> existingDomains) {
+        // 분류 결과에서 DOMAIN: 부분 추출
+        String domainName = extractDomainFromResult(classificationResult);
+        
+        // 기존 도메인에서 찾기
+        Optional<ApiDomain> existingDomain = existingDomains.stream()
+            .filter(d -> d.getDomainName().equalsIgnoreCase(domainName))
+            .findFirst();
+            
+        if (existingDomain.isPresent()) {
+            return existingDomain.get();
+        }
+        
+        // 새 도메인 생성
+        ApiDomain newDomain = ApiDomain.builder()
+            .domainName(domainName)
+            .description(domainName + " 도메인")
+            .build();
+        
+        return apiDomainRepository.save(newDomain);
+    }
+    
+    /**
+     * Gemini AI 분류 결과를 파싱하여 키워드 찾기/생성
+     * 
+     * @param classificationResult Gemini AI 분류 결과
+     * @param existingKeywords 기존 키워드 목록
+     * @param domain 소속 도메인
+     * @return 찾거나 생성된 ApiKeyword
+     */
+    private ApiKeyword findOrCreateKeyword(String classificationResult, List<ApiKeyword> existingKeywords, ApiDomain domain) {
+        // 분류 결과에서 KEYWORD: 부분 추출
+        String keywordName = extractKeywordFromResult(classificationResult);
+        
+        // 기존 키워드에서 찾기
+        Optional<ApiKeyword> existingKeyword = existingKeywords.stream()
+            .filter(k -> k.getKeywordName().equalsIgnoreCase(keywordName))
+            .findFirst();
+            
+        if (existingKeyword.isPresent()) {
+            return existingKeyword.get();
+        }
+        
+        // 새 키워드 생성
+        ApiKeyword newKeyword = ApiKeyword.builder()
+            .keywordName(keywordName)
+            .description(keywordName + " 키워드")
+            .domain(domain)
+            .build();
+        
+        return apiKeywordRepository.save(newKeyword);
+    }
+    
+    /**
+     * Gemini AI 응답에서 도메인명 추출
+     * 
+     * @param result Gemini AI 응답
+     * @return 추출된 도메인명
+     */
+    private String extractDomainFromResult(String result) {
+        String[] lines = result.split("\n");
+        for (String line : lines) {
+            if (line.startsWith("DOMAIN:")) {
+                return line.substring("DOMAIN:".length()).trim();
+            }
+        }
+        return "Other"; // 기본값
+    }
+    
+    /**
+     * Gemini AI 응답에서 키워드명 추출
+     * 
+     * @param result Gemini AI 응답
+     * @return 추출된 키워드명
+     */
+    private String extractKeywordFromResult(String result) {
+        String[] lines = result.split("\n");
+        for (String line : lines) {
+            if (line.startsWith("KEYWORD:")) {
+                return line.substring("KEYWORD:".length()).trim();
+            }
+        }
+        return "general"; // 기본값
     }
 
     /**

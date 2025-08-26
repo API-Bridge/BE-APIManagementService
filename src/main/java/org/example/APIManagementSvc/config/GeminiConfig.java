@@ -14,8 +14,8 @@ public class GeminiConfig {
     @Bean
     public Client geminiClient() {
         if (apiKey == null || apiKey.trim().isEmpty()) {
-            throw new IllegalStateException("Gemini API key is not configured. Please set GEMINI_API_KEY environment variable or gemini.api.key property.");
+            throw new IllegalStateException("Gemini API 키 가 정의되어있지 않습니다. GEMINI_API_KEY 환경변수를 정의해주세요.");
         }
-        return new Client(apiKey);
+        return new Client();
     }
 }

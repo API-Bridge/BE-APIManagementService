@@ -141,11 +141,45 @@ public class ApiHealthController {
             return ResponseEntity.ok(response);
             
         } catch (Exception e) {
-            log.error("Manual health check failed for all APIs", e);
+            log.error("전체 API 에 대한 헬스체크가 실패했습니다.", e);
             
             BaseResponse<String> response = BaseResponse.error(
                 "HEALTH_CHECK_FAILED",
                 "전체 헬스체크 실행 중 오류가 발생했습니다: " + e.getMessage()
+            );
+            
+            return ResponseEntity.internalServerError().body(response);
+        }
+    }
+
+    /**
+     * 캐시된 비정상 API들에 대한 수동 재검사 실행
+     * 
+     * @return 재검사 실행 결과
+     */
+    @PostMapping("/check/unhealthy-recheck")
+    @Operation(summary = "캐시된 비정상 API 재검사", 
+               description = "Redis에 캐시된 비정상 API들에 대해 수동으로 재검사를 실행합니다.")
+    public ResponseEntity<BaseResponse<String>> performUnhealthyApiRecheck() {
+        
+        log.info("Manual recheck requested for cached unhealthy APIs");
+        
+        try {
+            apiHealthCheckService.performCachedUnhealthyApiRecheck();
+            
+            BaseResponse<String> response = BaseResponse.success(
+                "비정상 API 재검사 실행 완료",
+                "캐시된 비정상 API들에 대한 재검사가 시작되었습니다."
+            );
+            
+            return ResponseEntity.ok(response);
+            
+        } catch (Exception e) {
+            log.error("캐시된 비정상 API 재검사가 실패했습니다.", e);
+            
+            BaseResponse<String> response = BaseResponse.error(
+                "RECHECK_FAILED",
+                "비정상 API 재검사 실행 중 오류가 발생했습니다: " + e.getMessage()
             );
             
             return ResponseEntity.internalServerError().body(response);

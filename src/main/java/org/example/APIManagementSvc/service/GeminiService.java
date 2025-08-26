@@ -48,6 +48,28 @@ public class GeminiService {
         return generateText(prompt);
     }
     
+    public String classifyApiWithContext(String apiName, String apiDescription, String apiUrl, 
+                                       String existingDomains, String existingKeywords) {
+        String prompt = String.format(
+            "기존 도메인 목록: [%s]\n" +
+            "기존 키워드 목록: [%s]\n\n" +
+            "분류할 API 정보:\n" +
+            "- API 이름: %s\n" +
+            "- API 설명: %s\n" +
+            "- API URL: %s\n\n" +
+            "위 API를 분석하여 다음 형식으로 응답해주세요:\n" +
+            "DOMAIN: [기존 도메인 중 가장 적합한 것 또는 새로운 도메인명]\n" +
+            "KEYWORD: [기존 키워드 중 가장 적합한 것 또는 새로운 키워드명]\n\n" +
+            "규칙:\n" +
+            "1. 기존 도메인/키워드가 적합하면 정확히 같은 이름으로 응답\n" +
+            "2. 적합한 것이 없다면 새로운 이름을 제안\n" +
+            "3. 도메인과 키워드 이름만 응답 (설명 불필요)",
+            existingDomains, existingKeywords, apiName, apiDescription, apiUrl
+        );
+        
+        return generateText(prompt);
+    }
+    
     public String analyzeApiSecurity(String apiUrl, String apiDescription) {
         String prompt = String.format(
             "Analyze the security aspects of the following API:\n\n" +

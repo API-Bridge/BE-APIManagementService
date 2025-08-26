@@ -3,6 +3,8 @@ package org.example.APIManagementSvc.service;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.example.APIManagementSvc.domain.Entity.ExternalApiSpec;
+import org.example.APIManagementSvc.event.model.ExternalApiHealthCheckEvent;
+import org.example.APIManagementSvc.event.publisher.EventPublisher;
 import org.example.APIManagementSvc.repository.ExternalApiSpecRepository;
 import org.springframework.http.*;
 import org.springframework.scheduling.annotation.Async;
@@ -13,6 +15,7 @@ import org.springframework.web.client.RestTemplate;
 
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 
 /**
@@ -47,6 +50,9 @@ public class ApiHealthCheckService {
     
     /** 헬스체크 실패 API Redis 캐시 관리 서비스 */
     private final ApiHealthCacheService apiHealthCacheService;
+    
+    /** Kafka 이벤트 발행 서비스 */
+    private final EventPublisher eventPublisher;
 
     /**
      * 전체 API에 대한 정기 헬스체크 스케줄러
@@ -72,6 +78,62 @@ public class ApiHealthCheckService {
         // 각 API에 대해 비동기 헬스체크 실행
         for (ExternalApiSpec apiSpec : activeApis) {
             performHealthCheckAsync(apiSpec);
+        }
+    }
+
+    /**
+     * 캐시된 비정상 API들에 대한 재검사 스케줄러
+     * 
+     * 매 10분(600,000ms)마다 실행되어 Redis 캐시에 저장된 비정상 API들만 재검사
+     * TTL 만료 시점과 맞춰서 API 상태 재확인 및 캐시 갱신
+     * 
+     * 동작 방식:
+     * - Redis에서 현재 캐시된 비정상 API 목록 조회
+     * - 각 API에 대해 헬스체크 수행
+     * - 정상화된 API는 캐시에서 제거, 여전히 비정상인 API는 캐시 TTL 갱신
+     * 
+     * @throws Exception 스케줄링 중 발생하는 예외
+     */
+    @Scheduled(fixedRate = 600000) // 10분마다 실행
+    @Transactional
+    public void performCachedUnhealthyApiRecheck() {
+        log.info("Starting recheck for cached unhealthy APIs");
+        
+        try {
+            // Redis에서 현재 캐시된 비정상 API ID 목록 조회
+            Set<String> unhealthyApiIds = apiHealthCacheService.getUnhealthyApiIds();
+            
+            if (unhealthyApiIds.isEmpty()) {
+                log.debug("No unhealthy APIs found in cache - skipping recheck");
+                return;
+            }
+            
+            log.info("Found {} unhealthy APIs in cache to recheck", unhealthyApiIds.size());
+            
+            // 각 비정상 API에 대해 재검사 수행
+            for (String apiId : unhealthyApiIds) {
+                try {
+                    // DB에서 API 명세 조회
+                    ExternalApiSpec apiSpec = externalApiSpecRepository.findById(apiId).orElse(null);
+                    
+                    if (apiSpec != null && apiSpec.getIsActive()) {
+                        log.debug("Rechecking cached unhealthy API: {} ({})", apiSpec.getApiName(), apiId);
+                        
+                        // 비동기 헬스체크 수행
+                        performHealthCheckAsync(apiSpec);
+                    } else {
+                        log.warn("API not found or inactive, removing from cache: {}", apiId);
+                        // 존재하지 않거나 비활성화된 API는 캐시에서 제거
+                        apiHealthCacheService.removeHealthyApi(apiId);
+                    }
+                    
+                } catch (Exception e) {
+                    log.error("Error rechecking unhealthy API: {}", apiId, e);
+                }
+            }
+            
+        } catch (Exception e) {
+            log.error("Error during cached unhealthy API recheck", e);
         }
     }
 
@@ -125,6 +187,11 @@ public class ApiHealthCheckService {
      * @return HealthStatus 헬스체크 결과 상태
      */
     private ExternalApiSpec.HealthStatus checkApiHealth(ExternalApiSpec apiSpec) {
+        long startTime = System.currentTimeMillis();
+        String status = "UNKNOWN";
+        Integer statusCode = null;
+        String errorMessage = null;
+        
         try {
             // 헬스체크 URL 구성
             String healthCheckUrl = buildHealthCheckUrl(apiSpec);
@@ -144,20 +211,42 @@ public class ApiHealthCheckService {
                     String.class
             );
 
+            statusCode = response.getStatusCode().value();
+            long responseTime = System.currentTimeMillis() - startTime;
+            
             // 응답 상태 코드 확인
             if (response.getStatusCode().is2xxSuccessful()) {
+                status = "HEALTHY";
                 log.debug("Health check successful for API: {}", apiSpec.getApiName());
+                
+                // 헬스체크 성공 이벤트 발행
+                publishHealthCheckEvent(apiSpec, status, (int) responseTime, statusCode, null);
+                
                 return ExternalApiSpec.HealthStatus.HEALTHY;
             } else {
+                status = "UNHEALTHY";
+                errorMessage = "HTTP " + statusCode + " response";
                 log.warn("Health check failed for API: {} - HTTP Status: {}", 
                         apiSpec.getApiName(), response.getStatusCode());
+                
+                // 헬스체크 실패 이벤트 발행
+                publishHealthCheckEvent(apiSpec, status, (int) responseTime, statusCode, errorMessage);
+                
                 return ExternalApiSpec.HealthStatus.UNHEALTHY;
             }
 
         } catch (Exception e) {
             // 연결 실패, 타임아웃 등의 예외 처리
+            long responseTime = System.currentTimeMillis() - startTime;
+            status = "UNHEALTHY";
+            errorMessage = e.getMessage();
+            
             log.error("Health check exception for API: {} - Error: {}", 
                     apiSpec.getApiName(), e.getMessage());
+            
+            // 헬스체크 예외 이벤트 발행
+            publishHealthCheckEvent(apiSpec, status, (int) responseTime, statusCode, errorMessage);
+            
             return ExternalApiSpec.HealthStatus.UNHEALTHY;
         }
     }
@@ -229,7 +318,7 @@ public class ApiHealthCheckService {
      * 
      * 처리 로직:
      * 1. DB에 헬스 상태 업데이트
-     * 2. UNHEALTHY → Redis 캐시에 저장 (TTL: 1시간)
+     * 2. UNHEALTHY → Redis 캐시에 저장 (TTL: 10분)
      * 3. HEALTHY → Redis 캐시에서 제거
      * 
      * @param apiId 업데이트할 API 식별자
@@ -259,7 +348,7 @@ public class ApiHealthCheckService {
      * 헬스 상태 변화에 따라 Redis 캐시를 적절히 관리
      * 
      * 캐시 관리 로직:
-     * - HEALTHY → UNHEALTHY: Redis에 실패 API 정보 캐시 (TTL: 1시간)
+     * - HEALTHY → UNHEALTHY: Redis에 실패 API 정보 캐시 (TTL: 10분)
      * - UNHEALTHY → HEALTHY: Redis에서 API 정보 제거
      * - UNKNOWN → UNHEALTHY: Redis에 실패 API 정보 캐시
      * - UNKNOWN → HEALTHY: 캐시 작업 없음
@@ -329,5 +418,44 @@ public class ApiHealthCheckService {
      */
     public List<ExternalApiSpec> getAllApisWithHealthStatus() {
         return externalApiSpecRepository.findByIsActiveTrue();
+    }
+
+    /**
+     * 헬스체크 이벤트를 Kafka로 발행
+     * 
+     * @param apiSpec API 명세
+     * @param status 헬스 상태
+     * @param responseTime 응답 시간
+     * @param statusCode HTTP 상태 코드
+     * @param errorMessage 오류 메시지
+     */
+    private void publishHealthCheckEvent(ExternalApiSpec apiSpec, String status, 
+                                       Integer responseTime, Integer statusCode, 
+                                       String errorMessage) {
+        try {
+            ExternalApiHealthCheckEvent event = new ExternalApiHealthCheckEvent(
+                    Long.parseLong(apiSpec.getApiId()),
+                    apiSpec.getApiName(),
+                    apiSpec.getApiUrl(),
+                    status,
+                    responseTime,
+                    statusCode,
+                    errorMessage,
+                    LocalDateTime.now()
+            );
+            
+            eventPublisher.publishEvent("external_api_events", event);
+            
+            if ("UNHEALTHY".equals(status)) {
+                log.info("Published External API Health Check Event (UNHEALTHY) for API: {} - Status: {}, Error: {}",
+                        apiSpec.getApiName(), status, errorMessage);
+            } else {
+                log.debug("Published External API Health Check Event for API: {} - Status: {}", 
+                        apiSpec.getApiName(), status);
+            }
+            
+        } catch (Exception e) {
+            log.error("Failed to publish health check event for API: {}", apiSpec.getApiName(), e);
+        }
     }
 }

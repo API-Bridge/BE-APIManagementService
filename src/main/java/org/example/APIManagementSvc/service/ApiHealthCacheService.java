@@ -17,7 +17,7 @@ import java.util.Set;
  * 헬스체크에 실패한 외부 API 정보를 Redis에 캐시하여 관리하는 서비스
  * 
  * 주요 기능:
- * - 헬스체크 실패 API 정보를 Redis에 저장 (TTL: 1시간)
+ * - 헬스체크 실패 API 정보를 Redis에 저장 (TTL: 10분)
  * - 실패 API 목록 조회 및 관리
  * - 캐시된 실패 API 정보 삭제 (정상화 시)
  * - 실패 API 상태 모니터링 지원
@@ -43,14 +43,14 @@ public class ApiHealthCacheService {
     /** 실패 API 집합 키 */
     private static final String UNHEALTHY_APIS_SET_KEY = "unhealthy_apis_set";
     
-    /** 캐시 TTL: 1시간 (3600초) */
-    private static final Duration CACHE_TTL = Duration.ofHours(1);
+    /** 캐시 TTL: 10분 (600초) */
+    private static final Duration CACHE_TTL = Duration.ofMinutes(10);
 
     /**
      * 헬스체크 실패 API를 Redis 캐시에 저장
      * 
      * API 상세 정보와 실패 시각을 포함하여 Redis에 저장하고
-     * TTL을 1시간으로 설정하여 자동 만료 처리
+     * TTL을 10분으로 설정하여 자동 만료 처리
      * 
      * 저장 데이터:
      * - API ID, 이름, URL, 설명
@@ -74,15 +74,15 @@ public class ApiHealthCacheService {
                     .lastHealthCheck(apiSpec.getLastHealthCheck())
                     .build();
 
-            // Redis에 API 정보 저장 (TTL: 1시간)
+            // Redis에 API 정보 저장 (TTL: 10분)
             redisTemplate.opsForValue().set(apiKey, unhealthyInfo, CACHE_TTL);
             
-            // 실패 API ID를 집합에 추가 (TTL: 1시간)
+            // 실패 API ID를 집합에 추가 (TTL: 10분)
             redisTemplate.opsForSet().add(UNHEALTHY_APIS_SET_KEY, apiSpec.getApiId());
             redisTemplate.expire(UNHEALTHY_APIS_SET_KEY, CACHE_TTL);
 
-            log.info("Cached unhealthy API: {} with TTL: {} hours", 
-                    apiSpec.getApiName(), CACHE_TTL.toHours());
+            log.info("Cached unhealthy API: {} with TTL: {} minutes", 
+                    apiSpec.getApiName(), CACHE_TTL.toMinutes());
                     
         } catch (Exception e) {
             log.error("Failed to cache unhealthy API: {}", apiSpec.getApiName(), e);

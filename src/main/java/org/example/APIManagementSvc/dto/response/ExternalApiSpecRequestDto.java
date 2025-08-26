@@ -33,7 +33,7 @@ public class ExternalApiSpecRequestDto {
     @NotBlank(message = "HTTP 메소드는 필수입니다")
     private String httpMethod;
     
-    @NotBlank(message = "자격증명 ID는 필수입니다")
+    @NotBlank(message = "액세스키 ID는 필수입니다")
     private String credentialId;
     
     private Integer domainId;

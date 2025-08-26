@@ -20,7 +20,6 @@ import java.util.UUID;
 @Data
 @SuperBuilder
 @NoArgsConstructor
-@AllArgsConstructor
 public abstract class BaseEvent {
     /** 이벤트 고유 식별자 */
     private String eventId;
