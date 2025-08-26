@@ -338,6 +338,8 @@ public class ApiHealthCheckService {
             externalApiSpecRepository.save(apiSpec);
             
             // Redis 캐시 관리
+            log.info("Calling handleHealthStatusCache for API: {} - Previous: {}, Current: {}", 
+                    apiSpec.getApiName(), previousStatus, healthStatus);
             handleHealthStatusCache(apiSpec, previousStatus, healthStatus);
         }
     }
@@ -361,12 +363,19 @@ public class ApiHealthCheckService {
                                        ExternalApiSpec.HealthStatus previousStatus,
                                        ExternalApiSpec.HealthStatus currentStatus) {
         try {
-            // API가 실패 상태로 변경된 경우
+            log.info("handleHealthStatusCache called - API: {}, Previous: {}, Current: {}", 
+                    apiSpec.getApiName(), previousStatus, currentStatus);
+                    
+            // API가 실패 상태인 경우
             if (currentStatus == ExternalApiSpec.HealthStatus.UNHEALTHY) {
-                // 이전에 정상이었거나 미확인 상태였다면 캐시에 추가
+                log.info("Caching unhealthy API: {}", apiSpec.getApiName());
+                // 현재 UNHEALTHY 상태인 모든 API를 캐시에 저장
+                apiHealthCacheService.cacheUnhealthyApi(apiSpec);
                 if (previousStatus != ExternalApiSpec.HealthStatus.UNHEALTHY) {
-                    apiHealthCacheService.cacheUnhealthyApi(apiSpec);
                     log.warn("API became unhealthy, cached in Redis: {} ({})", 
+                            apiSpec.getApiName(), apiSpec.getApiId());
+                } else {
+                    log.info("API remains unhealthy, updated cache: {} ({})", 
                             apiSpec.getApiName(), apiSpec.getApiId());
                 }
             }

@@ -16,6 +16,6 @@ public class GeminiConfig {
         if (apiKey == null || apiKey.trim().isEmpty()) {
             throw new IllegalStateException("Gemini API 키 가 정의되어있지 않습니다. GEMINI_API_KEY 환경변수를 정의해주세요.");
         }
-        return new Client();
+        return Client.builder().apiKey(apiKey).build();
     }
 }

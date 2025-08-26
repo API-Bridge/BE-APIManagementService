@@ -6,6 +6,7 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.example.APIManagementSvc.domain.Entity.ExternalApiSpec;
+import org.example.APIManagementSvc.dto.ExternalApiHealthDto;
 import org.example.APIManagementSvc.dto.common.BaseResponse;
 import org.example.APIManagementSvc.service.ApiHealthCheckService;
 import org.example.APIManagementSvc.service.ApiHealthCacheService;
@@ -42,14 +43,17 @@ public class ApiHealthController {
     @GetMapping("/status/all")
     @Operation(summary = "전체 API 헬스 상태 조회", 
                description = "활성화된 모든 외부 API의 현재 헬스 상태를 조회합니다.")
-    public ResponseEntity<BaseResponse<List<ExternalApiSpec>>> getAllApiHealthStatus() {
+    public ResponseEntity<BaseResponse<List<ExternalApiHealthDto>>> getAllApiHealthStatus() {
         log.info("Fetching health status for all active APIs");
         
         List<ExternalApiSpec> apis = apiHealthCheckService.getAllApisWithHealthStatus();
+        List<ExternalApiHealthDto> healthDtos = apis.stream()
+                .map(ExternalApiHealthDto::from)
+                .toList();
         
-        BaseResponse<List<ExternalApiSpec>> response = BaseResponse.success(
+        BaseResponse<List<ExternalApiHealthDto>> response = BaseResponse.success(
             "전체 API 헬스 상태 조회 완료",
-            apis
+            healthDtos
         );
         
         return ResponseEntity.ok(response);
@@ -64,58 +68,23 @@ public class ApiHealthController {
     @GetMapping("/status/{healthStatus}")
     @Operation(summary = "헬스 상태별 API 조회", 
                description = "특정 헬스 상태(HEALTHY/UNHEALTHY/UNKNOWN)의 API 목록을 조회합니다.")
-    public ResponseEntity<BaseResponse<List<ExternalApiSpec>>> getApisByHealthStatus(
+    public ResponseEntity<BaseResponse<List<ExternalApiHealthDto>>> getApisByHealthStatus(
             @Parameter(description = "헬스 상태", example = "HEALTHY")
             @PathVariable ExternalApiSpec.HealthStatus healthStatus) {
         
         log.info("Fetching APIs with health status: {}", healthStatus);
         
         List<ExternalApiSpec> apis = apiHealthCheckService.getApisByHealthStatus(healthStatus);
+        List<ExternalApiHealthDto> healthDtos = apis.stream()
+                .map(ExternalApiHealthDto::from)
+                .toList();
         
-        BaseResponse<List<ExternalApiSpec>> response = BaseResponse.success(
-            String.format("%s 상태의 API %d개 조회 완료", healthStatus, apis.size()),
-            apis
+        BaseResponse<List<ExternalApiHealthDto>> response = BaseResponse.success(
+            String.format("%s 상태의 API %d개 조회 완료", healthStatus, healthDtos.size()),
+            healthDtos
         );
         
         return ResponseEntity.ok(response);
-    }
-
-    /**
-     * 특정 API의 수동 헬스체크 실행
-     * 
-     * @param apiId 헬스체크를 실행할 API ID
-     * @return 헬스체크 실행 결과
-     */
-    @PostMapping("/check/{apiId}")
-    @Operation(summary = "수동 헬스체크 실행", 
-               description = "특정 API에 대해 수동으로 헬스체크를 실행합니다.")
-    public ResponseEntity<BaseResponse<String>> performManualHealthCheck(
-            @Parameter(description = "API ID", example = "api-001")
-            @PathVariable String apiId) {
-        
-        log.info("Manual health check requested for API: {}", apiId);
-        
-        try {
-            // 수동 헬스체크는 동기적으로 실행하고 결과를 즉시 반환
-            // 실제 구현에서는 ExternalApiSpec을 조회하고 헬스체크 수행
-            
-            BaseResponse<String> response = BaseResponse.success(
-                "수동 헬스체크 실행 완료",
-                "헬스체크가 시작되었습니다. 결과는 잠시 후 확인 가능합니다."
-            );
-            
-            return ResponseEntity.ok(response);
-            
-        } catch (Exception e) {
-            log.error("Manual health check failed for API: {}", apiId, e);
-            
-            BaseResponse<String> response = BaseResponse.error(
-                "HEALTH_CHECK_FAILED",
-                "헬스체크 실행 중 오류가 발생했습니다: " + e.getMessage()
-            );
-            
-            return ResponseEntity.internalServerError().body(response);
-        }
     }
 
     /**

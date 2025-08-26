@@ -1,4 +1,15 @@
 -- ============================================
+-- 모든 테이블 삭제 (기존 데이터 완전 정리)
+-- ============================================
+DROP TABLE IF EXISTS api_parameters;
+DROP TABLE IF EXISTS api_tokens;
+DROP TABLE IF EXISTS external_api_specs;
+DROP TABLE IF EXISTS api_keywords;
+DROP TABLE IF EXISTS api_credentials;
+DROP TABLE IF EXISTS api_domains;
+DROP VIEW IF EXISTS v_api_request_details;
+
+-- ============================================
 -- 1. API 분류: 도메인 (Lookup Table)
 -- ENUM 대신 별도 테이블로 분리하여 유연성 확보
 -- ============================================
@@ -53,6 +64,9 @@ CREATE TABLE external_api_specs (
                                     domain_id INT UNSIGNED COMMENT 'API 분류 도메인 ID (FK)',
                                     keyword_id INT UNSIGNED COMMENT 'API 세부 키워드 ID (FK)',
                                     is_active BOOLEAN NOT NULL DEFAULT TRUE COMMENT 'API 현재 사용 가능 여부',
+                                    health_status ENUM('HEALTHY', 'UNHEALTHY', 'UNKNOWN') NOT NULL DEFAULT 'UNKNOWN' COMMENT 'API 헬스체크 상태',
+                                    health_check_path VARCHAR(255) COMMENT 'API 헬스체크 경로',
+                                    last_health_check TIMESTAMP NULL COMMENT '마지막 헬스체크 수행 시간',
                                     created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
                                     updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
                                     CONSTRAINT fk_spec_credential FOREIGN KEY (credential_id) REFERENCES api_credentials (credential_id),

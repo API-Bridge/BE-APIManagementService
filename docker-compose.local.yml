@@ -9,10 +9,10 @@ services:
     ports:
       - "3306:3306"
     environment:
-      MYSQL_ROOT_PASSWORD: password
-      MYSQL_DATABASE: apimanagement
+      MYSQL_ROOT_PASSWORD: cell4086
+      MYSQL_DATABASE: api_management_service_db
       MYSQL_USER: app
-      MYSQL_PASSWORD: password
+      MYSQL_PASSWORD: cell4086
     volumes:
       - mysql_data:/var/lib/mysql
     healthcheck:

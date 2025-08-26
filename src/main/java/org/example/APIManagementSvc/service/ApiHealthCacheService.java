@@ -8,7 +8,6 @@ import org.springframework.stereotype.Service;
 
 import java.time.Duration;
 import java.time.LocalDateTime;
-import java.time.format.DateTimeFormatter;
 import java.util.Set;
 
 /**
@@ -70,8 +69,8 @@ public class ApiHealthCacheService {
                     .apiUrl(apiSpec.getApiUrl())
                     .apiDescription(apiSpec.getApiDescription())
                     .apiIssuer(apiSpec.getApiIssuer())
-                    .failedAt(LocalDateTime.now())
-                    .lastHealthCheck(apiSpec.getLastHealthCheck())
+                    .failedAt(LocalDateTime.now().toString())
+                    .lastHealthCheck(apiSpec.getLastHealthCheck() != null ? apiSpec.getLastHealthCheck().toString() : null)
                     .build();
 
             // Redis에 API 정보 저장 (TTL: 10분)
@@ -176,19 +175,17 @@ public class ApiHealthCacheService {
         private String apiIssuer;
         
         /** 실패 시각 */
-        private LocalDateTime failedAt;
+        private String failedAt;
         
         /** 마지막 헬스체크 시간 */
-        private LocalDateTime lastHealthCheck;
+        private String lastHealthCheck;
 
         /**
          * 실패 시각을 포맷된 문자열로 반환
          * @return String 포맷된 실패 시각
          */
         public String getFormattedFailedAt() {
-            return failedAt != null ? 
-                   failedAt.format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss")) : 
-                   "알 수 없음";
+            return failedAt != null ? failedAt : "알 수 없음";
         }
     }
 }

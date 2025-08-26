@@ -7,7 +7,7 @@ spring:
   # JPA 설정 (Amazon Corretto 17 최적화)
   jpa:
     hibernate:
-      ddl-auto: ${DDL_AUTO:validate}
+      ddl-auto: ${DDL_AUTO:update}
     properties:
       hibernate:
         dialect: org.hibernate.dialect.MySQLDialect
@@ -20,6 +20,14 @@ spring:
         jdbc.batch_versioned_data: true
     show-sql: false
     open-in-view: false
+    defer-datasource-initialization: true
+  
+  # SQL 초기화 설정 - 스키마와 데이터 모두 초기화
+  sql:
+    init:
+      mode: always
+      schema-locations: classpath:schema.sql
+      data-locations: classpath:data.sql
 
   # Kafka 설정
   kafka:
@@ -49,7 +57,7 @@ spring:
 
   # 데이터베이스 설정
   datasource:
-    url: ${DB_URL:jdbc:mysql://localhost:3306/apimanagement?useSSL=false&serverTimezone=UTC}
+    url: ${DB_URL:jdbc:mysql://localhost:3306/api_management_service_db?useSSL=false&serverTimezone=UTC}
     username: ${DB_USERNAME:root}
     password: ${DB_PASSWORD:cell4086}
     driver-class-name: com.mysql.cj.jdbc.Driver
@@ -72,7 +80,7 @@ aws:
 gemini:
   api:
     key: ${GEMINI_API_KEY:}
-    model: ${GEMINI_MODEL:gemini-2.0-flash-exp}
+    model: ${GEMINI_MODEL:gemini-2.5-flash}
     timeout: ${GEMINI_TIMEOUT:30s}
 
 # Circuit Breaker 설정 (Resilience4j)
@@ -122,7 +130,7 @@ management:
   # 개별 엔드포인트 상세 설정
   endpoint:
     health:
-      show-details: when_authorized
+      show-details: always
 
   # 프로메테우스 익스포터 설정
   prometheus:
@@ -143,7 +151,7 @@ management:
 
 # 서버 설정
 server:
-  port: ${SERVER_PORT:8080}
+  port: ${SERVER_PORT:8082}
   servlet:
     context-path: /api/v1
   tomcat:
