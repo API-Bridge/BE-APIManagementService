@@ -1,10 +1,12 @@
 package org.example.APIManagementSvc.event.consumer;
 
 import org.example.APIManagementSvc.event.model.ExternalApiCallFailedEvent;
+import org.example.APIManagementSvc.event.model.ExternalApiCallFailedEventWrapper;
 import org.example.APIManagementSvc.event.model.ExternalApiDeletedEvent;
 import org.example.APIManagementSvc.event.model.ExternalApiHealthCheckEvent;
 import org.example.APIManagementSvc.event.model.ExternalApiRegisteredEvent;
 import org.example.APIManagementSvc.service.ApiHealthCheckService;
+
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.kafka.annotation.KafkaListener;
@@ -40,8 +42,7 @@ public class ExternalApiEventConsumer {
     )
     public void handleExternalApiRegistered(@Payload ExternalApiRegisteredEvent event,
                                           @Header(KafkaHeaders.RECEIVED_PARTITION) int partition,
-                                          @Header(KafkaHeaders.OFFSET) long offset,
-                                          Acknowledgment ack) {
+                                          @Header(KafkaHeaders.OFFSET) long offset) {
         try {
             log.info("Received External API Registered Event - ID: {}, Name: {}, URL: {}, Partition: {}, Offset: {}",
                     event.getApiId(), event.getApiName(), event.getApiUrl(), partition, offset);
@@ -49,9 +50,7 @@ public class ExternalApiEventConsumer {
             // 외부 API 등록 이벤트 처리 로직
             processApiRegistration(event);
             
-            // 수동으로 커밋 확인
-            ack.acknowledge();
-            log.debug("External API Registered Event processed successfully: {}", event.getApiId());
+            log.info("External API Registered Event processed successfully: {}", event.getApiId());
             
         } catch (Exception e) {
             log.error("Error processing External API Registered Event: {}", event, e);
@@ -74,8 +73,7 @@ public class ExternalApiEventConsumer {
     )
     public void handleExternalApiDeleted(@Payload ExternalApiDeletedEvent event,
                                        @Header(KafkaHeaders.RECEIVED_PARTITION) int partition,
-                                       @Header(KafkaHeaders.OFFSET) long offset,
-                                       Acknowledgment ack) {
+                                       @Header(KafkaHeaders.OFFSET) long offset) {
         try {
             log.info("Received External API Deleted Event - ID: {}, Name: {}, Reason: {}, Partition: {}, Offset: {}",
                     event.getApiId(), event.getApiName(), event.getDeletionReason(), partition, offset);
@@ -83,9 +81,7 @@ public class ExternalApiEventConsumer {
             // 외부 API 삭제 이벤트 처리 로직
             processApiDeletion(event);
             
-            // 수동으로 커밋 확인
-            ack.acknowledge();
-            log.debug("External API Deleted Event processed successfully: {}", event.getApiId());
+            log.info("External API Deleted Event processed successfully: {}", event.getApiId());
             
         } catch (Exception e) {
             log.error("Error processing External API Deleted Event: {}", event, e);
@@ -108,8 +104,7 @@ public class ExternalApiEventConsumer {
     )
     public void handleExternalApiHealthCheck(@Payload ExternalApiHealthCheckEvent event,
                                            @Header(KafkaHeaders.RECEIVED_PARTITION) int partition,
-                                           @Header(KafkaHeaders.OFFSET) long offset,
-                                           Acknowledgment ack) {
+                                           @Header(KafkaHeaders.OFFSET) long offset) {
         try {
             log.info("Received External API Health Check Event - ID: {}, Name: {}, Status: {}, ResponseTime: {}ms, Partition: {}, Offset: {}",
                     event.getApiId(), event.getApiName(), event.getStatus(), event.getResponseTime(), partition, offset);
@@ -123,9 +118,7 @@ public class ExternalApiEventConsumer {
             // 외부 API 헬스체크 이벤트 처리 로직
             processApiHealthCheck(event);
             
-            // 수동으로 커밋 확인
-            ack.acknowledge();
-            log.debug("External API Health Check Event processed successfully: {}", event.getApiId());
+            log.info("External API Health Check Event processed successfully: {}", event.getApiId());
             
         } catch (Exception e) {
             log.error("Error processing External API Health Check Event: {}", event, e);
@@ -161,60 +154,89 @@ public class ExternalApiEventConsumer {
     }
 
     /**
-     * 외부 API 호출 실패 이벤트 처리
+     * 외부 API 호출 실패 이벤트 처리 (가이드에 따른 구현)
      * 
      * @param event 외부 API 호출 실패 이벤트
-     * @param partition 파티션 번호
-     * @param offset 오프셋
-     * @param ack 수동 확인용 객체
      */
     @KafkaListener(
-        topics = "external_api_called_failed",
+        topics = "external_api_events",
         containerFactory = "kafkaListenerContainerFactory",
         filter = "externalApiCallFailedEventFilter"
     )
-    public void handleExternalApiCallFailed(@Payload ExternalApiCallFailedEvent event,
-                                          @Header(KafkaHeaders.RECEIVED_PARTITION) int partition,
-                                          @Header(KafkaHeaders.OFFSET) long offset,
-                                          Acknowledgment ack) {
+    public void handleExternalApiCallFailed(ExternalApiCallFailedEventWrapper event) {
         try {
-            log.info("Received External API Call Failed Event - ID: {}, Name: {}, URL: {}, ErrorType: {}, Partition: {}, Offset: {}",
-                    event.getApiId(), event.getApiName(), event.getApiUrl(), event.getErrorType(), partition, offset);
+            log.info("외부 API 호출 실패 이벤트 수신: {}", event.getEventId());
             
-            // API 호출 실패 시 즉시 헬스체크 수행
-            processApiCallFailure(event);
+            ExternalApiCallFailedEventWrapper.ExternalApiCallFailedPayload payload = event.getPayload();
+            if (payload == null) {
+                log.warn("No payload found in event: {}", event);
+                return;
+            }
             
-            // 수동으로 커밋 확인
-            ack.acknowledge();
-            log.debug("External API Call Failed Event processed successfully: {}", event.getApiId());
+            // 1. 로깅 및 모니터링
+            log.error("API 호출 실패 - API: {}, URL: {}, 에러: {}",
+                payload.getApiName(),
+                payload.getApiUrl(),
+                payload.getErrorMessage());
+            
+            // 2. 처리 로직 호출
+            processApiCallFailureWrapper(payload);
             
         } catch (Exception e) {
             log.error("Error processing External API Call Failed Event: {}", event, e);
-            // 에러 처리 로직 (재시도, DLQ 전송 등)
         }
     }
 
     /**
-     * 외부 API 호출 실패 처리 로직 - 즉시 헬스체크 수행
+     * API 호출 실패 처리 로직
      * 
-     * @param event 외부 API 호출 실패 이벤트
+     * @param payload API 호출 실패 페이로드
      */
-    private void processApiCallFailure(ExternalApiCallFailedEvent event) {
+    private void processApiCallFailure(ExternalApiCallFailedEvent.ExternalApiCallFailedPayload payload) {
         try {
-            log.warn("API call failed for: {} - Error: {} ({})", 
-                    event.getApiName(), event.getErrorMessage(), event.getErrorType());
+            log.warn("API call failed - ApiId: {}, ApiName: {}, URL: {}, Error: {}, ErrorType: {}, CalledBy: {}", 
+                    payload.getApiId(), payload.getApiName(), payload.getApiUrl(), 
+                    payload.getErrorMessage(), payload.getErrorType(), payload.getCalledBy());
             
-            // 해당 API에 대한 즉시 헬스체크 수행
-            String apiId = String.valueOf(event.getApiId());
-            log.info("Triggering immediate health check for failed API: {} ({})", event.getApiName(), apiId);
-            
-            // ApiHealthCheckService를 통해 해당 API의 헬스체크 수행
-            apiHealthCheckService.performImmediateHealthCheck(apiId);
-            
-            log.info("Immediate health check triggered for API: {} due to call failure", event.getApiName());
+            // apiId를 사용하여 헬스체크 수행
+            if (payload.getApiId() != null) {
+                String apiId = payload.getApiId();
+                log.info("Triggering immediate health check for failed API: {} ({})", payload.getApiName(), apiId);
+                apiHealthCheckService.performImmediateHealthCheck(apiId);
+                log.info("Immediate health check triggered for API: {} due to call failure", payload.getApiName());
+            } else {
+                log.warn("Cannot trigger health check - apiId is null");
+            }
             
         } catch (Exception e) {
-            log.error("Failed to trigger health check for API: {} after call failure", event.getApiName(), e);
+            log.error("Failed to process API call failure: {}", payload, e);
         }
     }
+
+    /**
+     * API 호출 실패 처리 로직 (래퍼 이벤트용)
+     * 
+     * @param payload API 호출 실패 페이로드
+     */
+    private void processApiCallFailureWrapper(ExternalApiCallFailedEventWrapper.ExternalApiCallFailedPayload payload) {
+        try {
+            log.warn("API call failed - ApiId: {}, ApiName: {}, URL: {}, Error: {}, ErrorType: {}, CalledBy: {}", 
+                    payload.getApiId(), payload.getApiName(), payload.getApiUrl(), 
+                    payload.getErrorMessage(), payload.getErrorType(), payload.getCalledBy());
+            
+            // apiId를 사용하여 헬스체크 수행
+            if (payload.getApiId() != null) {
+                String apiId = payload.getApiId();
+                log.info("Triggering immediate health check for failed API: {} ({})", payload.getApiName(), apiId);
+                apiHealthCheckService.performImmediateHealthCheck(apiId);
+                log.info("Immediate health check triggered for API: {} due to call failure", payload.getApiName());
+            } else {
+                log.warn("Cannot trigger health check - apiId is null");
+            }
+            
+        } catch (Exception e) {
+            log.error("Failed to process API call failure: {}", payload, e);
+        }
+    }
+
 }

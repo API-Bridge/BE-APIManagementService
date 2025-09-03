@@ -1,6 +1,7 @@
 package org.example.APIManagementSvc.event.filter;
 
 import org.example.APIManagementSvc.event.model.BaseEvent;
+import org.example.APIManagementSvc.event.model.ExternalApiCallFailedEventWrapper;
 import org.springframework.kafka.listener.adapter.RecordFilterStrategy;
 import org.springframework.stereotype.Component;
 import org.apache.kafka.clients.consumer.ConsumerRecord;
@@ -49,10 +50,13 @@ public class EventTypeFilter {
     public static class ExternalApiCallFailedEventFilter implements RecordFilterStrategy<String, Object> {
         @Override
         public boolean filter(ConsumerRecord<String, Object> consumerRecord) {
-            if (consumerRecord.value() instanceof BaseEvent event) {
-                return !"EXTERNAL_API_CALL_FAILED".equals(event.getEventType());
+            if (consumerRecord.value() instanceof ExternalApiCallFailedEventWrapper event) {
+                return !"external-api-call-failed".equals(event.getEventType());
             }
-            return true; // BaseEvent가 아닌 경우 필터링
+            if (consumerRecord.value() instanceof BaseEvent event) {
+                return !"external-api-call-failed".equals(event.getEventType());
+            }
+            return true; // 해당 이벤트가 아닌 경우 필터링
         }
     }
 }

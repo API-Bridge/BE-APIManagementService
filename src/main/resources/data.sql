@@ -62,7 +62,10 @@ INSERT INTO api_keywords (domain_id, keyword_name) VALUES
 (13, 'api_document'), (13, 'tech_trend'), (13, 'developer_tool'),
 
 -- 생활/문화 (domain_id: 14)
-(14, 'fashion_trend'), (14, 'beauty_tip'), (14, 'recipe'), (14, 'interior_tip');
+(14, 'fashion_trend'), (14, 'beauty_tip'), (14, 'recipe'), (14, 'interior_tip'),
+
+-- 날씨 추가 키워드 (domain_id: 2)
+(2, 'heatwave_report');
 
 -- ============================================
 -- 3. API Credentials 데이터 추가
@@ -72,6 +75,7 @@ INSERT INTO api_credentials (credential_id, organization_name, api_key, secret_k
 ('finance-service-001', 'Alpha Vantage', 'alphavantage_api_key_12345', 'alphavantage_secret_12345', 'ACTIVE', '2024-01-01 00:00:00', 'support@alphavantage.co', NOW(), NOW()),
 ('news-service-001', 'NewsAPI', 'newsapi_key_12345', NULL, 'ACTIVE', '2024-01-01 00:00:00', 'contact@newsapi.org', NOW(), NOW()),
 ('transport-service-001', '서울시 열린데이터광장', 'seoul_transport_key_12345', NULL, 'ACTIVE', '2024-01-01 00:00:00', 'data@seoul.go.kr', NOW(), NOW()),
+('SGIS', '지리정보서비스', '9801df6404684fdabe3d', '31e0df80d73b4e8b9862', 'ACTIVE', '2025-09-03 00:00:00', '02)2012-9114', NOW(), NOW()),
 ('government-service-001', '공공데이터포털', 'data_go_kr_key_12345', NULL, 'ACTIVE', '2024-01-01 00:00:00', 'help@data.go.kr', NOW(), NOW());
 
 -- ============================================
@@ -99,7 +103,10 @@ INSERT INTO external_api_specs (api_id, api_name, api_description, api_issuer, a
 
 -- 공공/정부 관련 API
 ('gov-public-data-001', '공공데이터 조회', '정부 공공데이터를 제공하는 통합 API', '공공데이터포털', 'https://www.data.go.kr/api/15000581', 'GET', true, 'HEALTHY', '/status', 'government-service-001', 6, 26, NOW(), NOW()),
-('gov-statistics-001', '국가통계 조회', '국가 주요 통계 데이터를 제공하는 API', '공공데이터포털', 'https://www.data.go.kr/api/15000582', 'GET', true, 'HEALTHY', '/status', 'government-service-001', 6, 28, NOW(), NOW());
+('gov-statistics-001', '국가통계 조회', '국가 주요 통계 데이터를 제공하는 API', '공공데이터포털', 'https://www.data.go.kr/api/15000582', 'GET', true, 'HEALTHY', '/status', 'government-service-001', 6, 28, NOW(), NOW()),
+('3d0ad254-a587-47f1-9627-8c5a75fdb53f', '과거 폭염특보 목록', '과거 폭염특보 리스트를 반환하는 API', 'SGIS', 'https://sgisapi.kostat.go.kr/OpenAPI3/ndsm/prevHwSpcnwsList.json', 'GET', true, 'UNKNOWN', NULL, 'SGIS', 2, 67, NOW(), NOW()),
+('housing-stats-001', '주택통계', '(인구주택총조사) 주택 통계 제공 API', 'SGIS', 'https://sgisapi.kostat.go.kr/OpenAPI3/stats/house.json', 'GET', true, 'UNKNOWN', NULL, 'SGIS', 11, 55, NOW(), NOW());
+
 
 -- ============================================
 -- 5. API Parameters 데이터 추가
@@ -144,4 +151,13 @@ INSERT INTO api_parameters (parameter_id, param_name, param_type, is_required, p
 ('param-gov-data-002', 'numOfRows', 'integer', false, '한 페이지 결과 수', '10', NULL, 'gov-public-data-001', NOW(), NOW()),
 ('param-gov-data-003', 'pageNo', 'integer', false, '페이지번호', '1', NULL, 'gov-public-data-001', NOW(), NOW()),
 ('param-gov-data-004', 'MobileOS', 'string', true, 'OS 구분', 'ETC', NULL, 'gov-public-data-001', NOW(), NOW()),
-('param-gov-data-005', 'MobileApp', 'string', true, '서비스명', 'APIBridge', NULL, 'gov-public-data-001', NOW(), NOW());
+('param-gov-data-005', 'MobileApp', 'string', true, '서비스명', 'APIBridge', NULL, 'gov-public-data-001', NOW(), NOW()),
+
+-- 과거 폭염특보 목록 파라미터들
+('Heat-wave-warning-001', 'accessToken', 'String', TRUE, '액세스키', NULL, NULL, '3d0ad254-a587-47f1-9627-8c5a75fdb53f', NOW(), NOW()),
+('Heat-wave-warning-002', 'searchYear', 'String', TRUE, '폭염 발생 년도', '2023', NULL, '3d0ad254-a587-47f1-9627-8c5a75fdb53f', NOW(), NOW()),
+('Heat-wave-warning-003', 'searchMonth', 'String', TRUE, '폭염 발생 월', NULL, NULL, '3d0ad254-a587-47f1-9627-8c5a75fdb53f', NOW(), NOW()),
+
+-- 주택통계 파라미터들
+('housing-stats-param-001', 'accessToken', 'string', TRUE, '액세스키', '', NULL, 'housing-stats-001', NOW(), NOW()),
+('housing-stats-param-002', 'year', 'string', TRUE, '조회연도', '', NULL, 'housing-stats-001', NOW(), NOW());

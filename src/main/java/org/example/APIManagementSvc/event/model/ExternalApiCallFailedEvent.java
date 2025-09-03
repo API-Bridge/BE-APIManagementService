@@ -17,16 +17,22 @@ import java.time.LocalDateTime;
 @EqualsAndHashCode(callSuper = true)
 public class ExternalApiCallFailedEvent extends BaseEvent {
     
-    private Long apiId;
-    private String apiName;
-    private String apiUrl;
-    private String httpMethod;
-    private Integer statusCode; // HTTP 응답 상태 코드
-    private String errorMessage; // 실패 원인
-    private String errorType; // "TIMEOUT", "CONNECTION_ERROR", "HTTP_ERROR", "UNKNOWN"
-    private Integer responseTime; // 응답 시간 (ms)
-    private LocalDateTime failedAt; // 실패 시간
-    private String requestId; // 요청 식별자 (추적용)
-    private String calledBy; // 호출한 서비스/사용자
+    private ExternalApiCallFailedPayload payload;
 
+    @Data
+    @SuperBuilder
+    @NoArgsConstructor
+    public static class ExternalApiCallFailedPayload {
+        private String apiId;
+        private String apiName;
+        private String apiUrl;
+        private String httpMethod;
+        private Integer statusCode; // HTTP 응답 상태 코드
+        private String errorMessage; // 실패 원인
+        private String errorType; // "TIMEOUT", "CONNECTION_ERROR", "HTTP_ERROR", "UNKNOWN"
+        private Integer responseTime; // 응답 시간 (ms)
+        private LocalDateTime failedAt; // 실패 시간
+        private String requestId; // 요청 식별자 (추적용)
+        private String calledBy; // 호출한 서비스/사용자
+    }
 }

@@ -32,8 +32,14 @@ public abstract class BaseEvent {
     /** 이벤트를 발생시킨 서비스명 */
     private String sourceService;
     
+    /** 서비스명 (ai-svc에서 사용하는 필드명) */
+    private String serviceName;
+    
     /** 마이크로서비스 간 요청 추적을 위한 상관 ID */
     private String correlationId;
+    
+    /** 분산 추적을 위한 Trace ID */
+    private String traceId;
 
     /**
      * 이벤트 타입을 지정하여 이벤트를 생성하는 생성자

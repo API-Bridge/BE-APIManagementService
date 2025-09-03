@@ -54,6 +54,7 @@ public class ExternalApiSpecService {
     private final ApiKeywordRepository apiKeywordRepository;
     private final GeminiService geminiService;
     private final EventPublisher eventPublisher;
+    private final SgisTokenService sgisTokenService;
 
     /**
      * 새로운 외부 API 명세 등록
@@ -168,6 +169,11 @@ public class ExternalApiSpecService {
                     .collect(Collectors.toList());
             
             apiParameterRepository.saveAll(parameters);
+            
+            // SGIS 자격증명을 사용하는 API인 경우, accessToken 파라미터에 현재 토큰값 설정
+            if ("SGIS".equals(credential.getCredentialId())) {
+                updateSgisAccessTokenParameters(parameters);
+            }
         }
 
         // 외부 API 등록 이벤트 발행
@@ -579,5 +585,75 @@ public class ExternalApiSpecService {
                 .keywordName(apiSpec.getKeyword() != null ? apiSpec.getKeyword().getKeywordName() : null)
                 .parameters(parameterDtos)
                 .build();
+    }
+
+    /**
+     * 새로 등록된 SGIS API의 accessToken 파라미터에 현재 토큰값 설정
+     * 
+     * SGIS 자격증명을 사용하는 API가 새로 등록될 때, 해당 API의 accessToken 파라미터들에
+     * 현재 유효한 SGIS 토큰값을 default_value로 설정
+     * 
+     * 처리 과정:
+     * 1. 파라미터 중 param_name이 "accessToken"인 것들을 필터링
+     * 2. 현재 유효한 SGIS 토큰 조회
+     * 3. 해당 파라미터들의 default_value를 토큰값으로 업데이트
+     * 
+     * @param parameters 새로 등록된 API의 파라미터 목록
+     */
+    private void updateSgisAccessTokenParameters(List<ApiParameter> parameters) {
+        try {
+            log.debug("Updating accessToken parameters for newly registered SGIS API");
+            
+            // accessToken 파라미터들만 필터링
+            List<ApiParameter> accessTokenParams = parameters.stream()
+                    .filter(param -> "accessToken".equals(param.getParamName()))
+                    .collect(Collectors.toList());
+            
+            if (accessTokenParams.isEmpty()) {
+                log.debug("No accessToken parameters found in newly registered SGIS API");
+                return;
+            }
+            
+            log.info("Found {} accessToken parameters in newly registered SGIS API", accessTokenParams.size());
+            
+            // 현재 유효한 SGIS 토큰 조회
+            Optional<org.example.APIManagementSvc.domain.Entity.ApiToken> currentToken = 
+                    sgisTokenService.getTokenStatus();
+            
+            if (currentToken.isEmpty() || !sgisTokenService.isTokenValid()) {
+                log.warn("No valid SGIS token found. Attempting to issue new token for newly registered API.");
+                try {
+                    currentToken = Optional.of(sgisTokenService.issueToken());
+                } catch (Exception e) {
+                    log.error("Failed to issue SGIS token for newly registered API", e);
+                    return;
+                }
+            }
+            
+            String tokenValue = currentToken.get().getAccessToken();
+            
+            // 각 accessToken 파라미터의 default_value 업데이트
+            for (ApiParameter parameter : accessTokenParams) {
+                String oldValue = parameter.getDefaultValue();
+                parameter.setDefaultValue(tokenValue);
+                
+                log.debug("Updated accessToken parameter - API: {}, Parameter ID: {}, " +
+                        "Old value length: {}, New value length: {}", 
+                        parameter.getApiSpec().getApiId(),
+                        parameter.getParameterId(),
+                        oldValue != null ? oldValue.length() : 0,
+                        tokenValue.length());
+            }
+            
+            // 업데이트된 파라미터들 저장
+            apiParameterRepository.saveAll(accessTokenParams);
+            
+            log.info("Successfully updated {} accessToken parameters for newly registered SGIS API", 
+                    accessTokenParams.size());
+            
+        } catch (Exception e) {
+            log.error("Failed to update accessToken parameters for newly registered SGIS API", e);
+            // 파라미터 업데이트 실패가 API 등록 자체를 중단시키지는 않도록 예외를 던지지 않음
+        }
     }
 }

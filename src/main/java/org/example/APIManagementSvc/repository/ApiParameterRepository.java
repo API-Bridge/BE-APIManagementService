@@ -39,4 +39,14 @@ public interface ApiParameterRepository extends JpaRepository<ApiParameter, Stri
      * @param apiId 외부 API 고유 식별자
      */
     void deleteByApiSpec_ApiId(String apiId);
+
+    /**
+     * 특정 자격증명을 사용하는 API들의 특정 이름을 가진 파라미터들 조회
+     * SGIS 토큰 갱신 시 accessToken 파라미터들의 default_value를 업데이트할 때 사용
+     * 
+     * @param credentialId 자격증명 ID (예: "SGIS")
+     * @param paramName 파라미터 이름 (예: "accessToken")
+     * @return 해당 조건을 만족하는 파라미터 목록
+     */
+    List<ApiParameter> findByApiSpec_Credential_CredentialIdAndParamName(String credentialId, String paramName);
 }

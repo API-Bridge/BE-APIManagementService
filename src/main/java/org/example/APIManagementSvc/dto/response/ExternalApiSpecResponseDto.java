@@ -24,13 +24,10 @@ public class ExternalApiSpecResponseDto {
     private Boolean isActive;
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
-    
     private String credentialId;
     private String organizationName;
-    
     private Integer domainId;
     private String domainName;
-    
     private Integer keywordId;
     private String keywordName;
     

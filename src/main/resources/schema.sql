@@ -146,3 +146,60 @@ FROM
     api_credentials AS cred ON spec.credential_id = cred.credential_id
         LEFT JOIN
     api_tokens AS token ON cred.credential_id = token.credential_id;
+
+-- ============================================
+-- 성능 최적화를 위한 추가 인덱스
+-- ============================================
+
+-- 1. api_domains 테이블 인덱스
+-- domain_name으로 검색하는 경우가 많음
+CREATE INDEX idx_domains_name ON api_domains (domain_name);
+
+-- 2. api_keywords 테이블 인덱스  
+-- keyword_name으로 검색 및 domain_id로 그룹핑하는 경우가 많음
+CREATE INDEX idx_keywords_name ON api_keywords (keyword_name);
+CREATE INDEX idx_keywords_domain_name ON api_keywords (domain_id, keyword_name);
+
+-- 3. api_credentials 테이블 인덱스
+-- status로 필터링하는 경우가 많음 (ACTIVE 상태의 자격증명 조회)
+CREATE INDEX idx_credentials_status ON api_credentials (status);
+-- organization_name과 status 조합 검색
+CREATE INDEX idx_credentials_org_status ON api_credentials (organization_name, status);
+
+-- 4. external_api_specs 테이블 인덱스
+-- API 이름으로 검색하는 경우가 많음 (LIKE 검색 최적화)
+CREATE INDEX idx_specs_api_name ON external_api_specs (api_name);
+-- 활성화 상태로 필터링하는 경우가 매우 많음
+CREATE INDEX idx_specs_is_active ON external_api_specs (is_active);
+-- credential_id로 해당 자격증명의 모든 API 조회
+CREATE INDEX idx_specs_credential ON external_api_specs (credential_id);
+-- domain 별 API 조회
+CREATE INDEX idx_specs_domain ON external_api_specs (domain_id);
+-- keyword 별 API 조회  
+CREATE INDEX idx_specs_keyword ON external_api_specs (keyword_id);
+-- 헬스체크 상태별 조회 (모니터링용)
+CREATE INDEX idx_specs_health_status ON external_api_specs (health_status);
+-- 복합 인덱스: 활성 상태 + 자격증명 (가장 빈번한 조회 패턴)
+CREATE INDEX idx_specs_active_credential ON external_api_specs (is_active, credential_id);
+-- 복합 인덱스: 활성 상태 + 도메인 (카테고리별 조회)
+CREATE INDEX idx_specs_active_domain ON external_api_specs (is_active, domain_id);
+-- API URL 조회 최적화 (중복 체크용)
+CREATE INDEX idx_specs_api_url ON external_api_specs (api_url);
+
+-- 5. api_parameters 테이블 인덱스
+-- param_name으로 특정 파라미터 조회 (예: accessToken 파라미터 찾기)
+CREATE INDEX idx_parameters_name ON api_parameters (param_name);
+-- 필수 파라미터 필터링
+CREATE INDEX idx_parameters_required ON api_parameters (is_required);
+-- API별 파라미터 조회 + 파라미터명 (가장 빈번한 조회)
+CREATE INDEX idx_parameters_api_name ON api_parameters (api_id, param_name);
+-- 특정 자격증명의 API들 중 특정 파라미터명 조회 (SGIS accessToken 업데이트용)
+CREATE INDEX idx_parameters_credential_name ON api_parameters (api_id, param_name);
+
+-- 6. api_tokens 테이블 인덱스
+-- 토큰 유효성 검사 시 만료시간 체크
+CREATE INDEX idx_tokens_valid ON api_tokens (credential_id, expires_at);
+-- 토큰 타입별 조회
+CREATE INDEX idx_tokens_type ON api_tokens (token_type);
+-- 만료 예정 토큰 조회 (스케줄러용)
+CREATE INDEX idx_tokens_expiring ON api_tokens (expires_at, credential_id);
