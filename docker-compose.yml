@@ -1,0 +1,110 @@
+version: '3.8'
+
+services:
+  apimanagement-service:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    ports:
+      - "8082:8082"
+    env_file:
+      - .env
+    environment:
+      - SPRING_PROFILES_ACTIVE=docker
+      - SPRING_APPLICATION_NAME=apimanagement
+      - SERVICE_NAME=apimanagement
+      
+      # Database configuration
+      - DB_URL=jdbc:mysql://mysql:3306/api_management_service_db?allowPublicKeyRetrieval=true&useSSL=false&serverTimezone=UTC
+      - DB_USERNAME=root
+      - DB_PASSWORD=cell4086
+      
+      # Redis configuration (external container)
+      - REDIS_HOST=APIBridge-Redis
+      - REDIS_PORT=6379
+      
+      # Kafka configuration (external container)
+      - KAFKA_BOOTSTRAP_SERVERS=systemmanagementsvc-kafka-1:9092
+      
+      # Elasticsearch configuration (external container)
+      - ELASTICSEARCH_HOST=systemmanagementsvc-elasticsearch-1
+      - ELASTICSEARCH_PORT=9200
+      
+      # Logstash configuration (external container)
+      - LOGSTASH_HOST=systemmanagementsvc-logstash-1
+      - LOGSTASH_PORT=5044
+      
+      # Gemini API configuration
+      - GEMINI_API_KEY=${GEMINI_API_KEY:-}
+      
+      # Server configuration
+      - SERVER_PORT=8082
+      
+    # JSON 로그 형식으로 출력
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+        
+    depends_on:
+      mysql:
+        condition: service_healthy
+        
+    networks:
+      - microservices-network
+      - external-services
+      - systemmanagementsvc_app-network
+    
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8082/api/v1/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+
+  mysql:
+    image: mysql:8.0
+    ports:
+      - "3306:3306"
+    environment:
+      MYSQL_ROOT_PASSWORD: cell4086
+      MYSQL_DATABASE: api_management_service_db
+      MYSQL_USER: app
+      MYSQL_PASSWORD: cell4086
+    volumes:
+      - mysql_data:/var/lib/mysql
+      - ./src/main/resources/schema.sql:/docker-entrypoint-initdb.d/01-schema.sql:ro
+      - ./src/main/resources/data.sql:/docker-entrypoint-initdb.d/02-data.sql:ro
+      - ./mysql-config/my.cnf:/etc/mysql/conf.d/my.cnf:ro
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-pcell4086"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    networks:
+      - microservices-network
+
+volumes:
+  mysql_data:
+
+networks:
+  microservices-network:
+    driver: bridge
+  external-services:
+    external: true
+  systemmanagementsvc_app-network:
+    external: true
+
+# 사용법:
+# 1. 환경변수 설정: export GEMINI_API_KEY="your-gemini-api-key"
+# 2. 실행: docker-compose up -d
+# 3. 로그 확인: docker-compose logs -f apimanagement-service
+# 4. 중지: docker-compose down
+# 5. 완전 정리: docker-compose down -v
+#
+# 접속 정보:
+# - API 서비스: http://localhost:8082/api/v1
+# - Swagger UI: http://localhost:8082/api/v1/swagger-ui.html
+# - Health Check: http://localhost:8082/api/v1/health

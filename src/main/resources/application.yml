@@ -52,7 +52,7 @@ spring:
   # Redis 설정
   redis:
     host: ${REDIS_HOST:localhost}
-    port: ${REDIS_PORT:6379}
+    port: ${REDIS_PORT:6380}
     timeout: 2000ms
 
   # 데이터베이스 설정
@@ -192,3 +192,26 @@ management:
   endpoint:
     health:
       show-details: never
+
+---
+# Docker 환경 설정
+spring:
+  config:
+    activate:
+      on-profile: docker
+  data:
+    redis:
+      host: ${REDIS_HOST:redis}
+      port: ${REDIS_PORT:6380}
+  kafka:
+    bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:localhost:9092}
+
+# Elasticsearch 설정 (옵셔널)
+elasticsearch:
+  host: ${ELASTICSEARCH_HOST:elasticsearch}
+  port: ${ELASTICSEARCH_PORT:9200}
+
+logging:
+  level:
+    org.example.apimanagement: DEBUG
+    org.springframework.security: DEBUG
